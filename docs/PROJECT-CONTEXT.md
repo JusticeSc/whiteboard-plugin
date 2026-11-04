@@ -19,7 +19,7 @@
 | profile 链接 | `%USERPROFILE%\.dsh\profiles\web\node_modules\@local\whiteboard` → 本目录（Junction） |
 | 自动化 | Host 216 checks / 客户端 105 checks / 隔离 e2e **E2E V3 OK** |
 | 实机审查 | 已完成多轮（对齐、历史消息、文字选区、品牌色），见 `evidence-v3/` |
-| 发布状态 | **源码 Git 基线已建立（MIT + `v3.0.0` tag）；远端仓库/npm 待定** |
+| 发布状态 | **已发布到 GitHub（public，MIT，`v3.0.0` tag + Release）** |
 
 版本策略：首次发布保持 `3.0.0`，包含验收后修复；发布后的 bugfix 升 `3.0.x`，
 功能升级升 `3.x`/`4.0`（见 `DECISIONS.md` R3）。
@@ -167,9 +167,9 @@ node test/e2e/v3.mjs     # 隔离 DSH_HOME + 端口 3092，真实 Chrome/模型�
 
 ## 12. 发布状态（详见 RELEASE）
 
-- 发布形态：**源码 Git 仓库**（本地基线已建立）；远端地址待提供后推送。
+- 发布形态：**已发布到 GitHub public 源码仓库**：<https://github.com/JusticeSc/whiteboard-plugin>。
 - 包名：保留 `@local/whiteboard`、`"private": true`；本次不走 npm，未来发 npm 再改 scope/移除 private。
 - 许可证：**MIT**（`LICENSE` + `package.json` 已同步）。
-- 仓库：`git init -b main` + 首次 commit + `v3.0.0` tag 已完成；远端待加。
+- 仓库：`main` + `v3.0.0` tag 已推送；[Release v3.0.0](https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0) 已建。
 - 兼容性：仅在 DSH `0.2.1-rc.5` 实测；公开/正式发布前决定是否声明 peer/engines。
 - 真实 store 旧测试残留清理仍需用户确认（与发布物无关，但会影响演示环境干净度）。

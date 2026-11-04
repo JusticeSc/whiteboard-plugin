@@ -1,7 +1,7 @@
 # 发布说明：`@local/whiteboard` 3.0.0
 
-> 状态：**源码发布基线已建立**（git 仓库 + `v3.0.0` tag + MIT License）。
-> 代码/测试/实机验收已就绪；远端仓库地址与 npm 发行方式待定，见 §4。
+> 状态：**已发布到 GitHub**（public repo + `v3.0.0` Release + MIT License）。
+> 代码/测试/实机验收已就绪；npm 发行方式仍待定，见 §4。
 > 生成日期：2026-11-04（Asia/Shanghai）。
 
 ## 1. 发布物
@@ -13,7 +13,9 @@
 | 形态 | DSH Cordis bundle（`cordis.patch.yml` 插入 `whiteboard` 条目） |
 | 入口 | `index.js`（Host）/ `client.js`（浏览器） |
 | 兼容环境 | `@deepseek-ai/dsh` `0.2.1-rc.5`，Web profile |
-| 当前 tag/commit | `v3.0.0`（本地 git tag；远端待推送） |
+| 当前 tag/commit | `v3.0.0`（已推送） |
+| 远端仓库 | [github.com/JusticeSc/whiteboard-plugin](https://github.com/JusticeSc/whiteboard-plugin)（public，`main` + `v3.0.0` tag） |
+| GitHub Release | [v3.0.0 — 画板插件首次发布](https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0) |
 | 许可证 | MIT（见根目录 `LICENSE`） |
 
 发布物按 `package.json` 的 `files` 字段打包：
@@ -71,7 +73,7 @@ LICENSE             # npm 自动包含
 
 | # | 决策 | 当前状态 | 下一步 |
 |---|---|---|---|
-| 1 | 发布形态 | **源码 Git 仓库（本地基线已建立）** | 提供远端地址后 `git push`；内部 bundle 可作为附带分发 |
+| 1 | 发布形态 | **已发布到 GitHub（public 源码仓库）** | 后续更新走 `main`/PR；npm 另行决定 |
 | 2 | 包名 | 保留 `@local/whiteboard`（源码/bundle 名称） | 只有走 npm 时才需要换 scope，并同步 `cordis.patch.yml`、安装脚本、profile manifest |
 | 3 | `private` | 保留 `true` | 内部 bundle 可保留；npm 发布前移除 |
 | 4 | 许可证 | **MIT**（已添加 `LICENSE` + `package.json`） | 无 |
@@ -80,7 +82,7 @@ LICENSE             # npm 自动包含
 | 7 | npm 包内容 | 本次不走 npm；源码仓库含 docs/test/scripts | 若后续发 npm：用 `files` 精简（当前 14 文件 / 65.5 kB，含 README/CHANGELOG/LICENSE） |
 | 8 | 截图隐私 | 真实会话截图 `docs/evidence-v3/live-*.png` **已从 Git 排除**（`.gitignore`），仅本地保留；仓库内 e2e/spike 截图已裁掉左侧会话栏/头像 | 公开仓库如需实机截图，先脱敏 |
 
-本地 `v3.0.0` 是当前发布基线；在推送远端前不要执行 `npm publish`。
+`v3.0.0` 是当前已发布基线；npm 发布不在本次范围，若要发 npm 需先处理包名/`private`。
 
 ## 5. 发布方式
 
@@ -93,27 +95,28 @@ LICENSE             # npm 自动包含
 
 优点：无需改包名/许可证；缺点：不是标准生态分发。
 
-### 方案 B：Git 源码仓库（本次采用）
+### 方案 B：GitHub 源码仓库（本次已采用）
 
-本地已经执行：
+已发布到 <https://github.com/JusticeSc/whiteboard-plugin>（public，`main` + `v3.0.0` tag），
+并创建 [GitHub Release v3.0.0](https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0)。
+
+本次执行过的步骤（可复现）：
 
 ```powershell
 cd <path-to>\whiteboard-plugin-v2
 git init -b main
 git add .
 git commit -m "whiteboard v3.0.0"
-git tag v3.0.0
+git tag -a v3.0.0 -m "Whiteboard v3.0.0"
+gh repo create whiteboard-plugin --public --source=. --remote=origin --push
+git push origin --tags
+gh release create v3.0.0 --repo JusticeSc/whiteboard-plugin --title "v3.0.0 — 画板插件首次发布" --notes-file <notes>
 ```
 
-剩余：把本地仓库推到远端。
-
-```powershell
-git remote add origin <your-repo-url>
-git push -u origin main --tags
-```
+后续更新：在 `main` 上提交/PR，按需打新 tag 和 Release；不要改写已发布的 `v3.0.0` tag。
 
 `LICENSE`、`CHANGELOG.md` 已提供；`.gitignore` 已排除
-`.spike-e2e/`、`test/e2e/.artifacts/` 等临时产物。
+`.spike-e2e/`、`test/e2e/.artifacts/`、真实会话截图 `live-*.png` 等产物。
 
 ### 方案 C：npm 包
 
@@ -134,10 +137,10 @@ git push -u origin main --tags
 - [x] `npm pack --dry-run` 内容符合预期（14 文件 / 65.5 kB，含 README/CHANGELOG/LICENSE）
 - [x] README/INDEX/PROJECT-CONTEXT/RELEASE/CHANGELOG 链接可点
 - [x] 真实会话截图 `live-*.png` 已从公开 Git 排除（`docs/evidence-v3/README.md` 说明）
-- [ ] 推送远端仓库 + 建 Release（需要你提供仓库地址）
+- [x] 推送远端仓库 + 建 Release（<https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0>）
 - [ ] 公开/正式发布前决定 DSH 兼容声明（`peerDependencies`/最低版本）
 - [ ] 真实 store 旧测试残留清理（可选，需用户确认；见 `PLAN-v3.md` §4）
-- [ ] 决定是否把 `whiteboard-plugin-v2` 改名为 `whiteboard-plugin`（历史文档去留）
+- [x] 仓库名采用 `whiteboard-plugin`（源码目录仍为 `whiteboard-plugin-v2`，历史文档保留）
 
 ## 7. 发布后验证
 

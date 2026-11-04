@@ -14,7 +14,8 @@ v1（`../whiteboard-plugin`）原样保留，回滚只需把 profile 链接指�
 > [发布说明与检查清单](docs/RELEASE-v3.0.0.md) ·
 > [下一阶段路线（canvas-first）](docs/ROADMAP-v4.md) ·
 > [文档索引](docs/INDEX.md) · [CHANGELOG](CHANGELOG.md)。
-> 当前版本 `3.0.0`；源码 Git 基线（MIT + `v3.0.0` tag）已建立，远端仓库/npm 待定（见发布说明 §4）。
+> 当前版本 `3.0.0`；已发布到 GitHub：[JusticeSc/whiteboard-plugin](https://github.com/JusticeSc/whiteboard-plugin)
+> （MIT，tag `v3.0.0`，[Release](https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0) 已建）。
 
 > **2026-11-04 实机修复**：① 主输入框上方的引用 chip 现在与输入框卡片左缘对齐——窄栏跟随 16px
 > 内缩，宽栏（右栏收起/大窗口）跟随居中卡片（`max-width: var(--dsh-composer-card-max-width)`）的
