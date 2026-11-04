@@ -3,7 +3,7 @@
 $ErrorActionPreference = 'Stop'
 
 $profileDir = Join-Path $env:USERPROFILE '.dsh\profiles\web'
-$v1 = Resolve-Path (Join-Path (Split-Path -Parent $PSScriptRoot) '..\whiteboard-plugin') -ErrorAction Stop
+$v1 = Resolve-Path (Join-Path (Split-Path -Parent $PSScriptRoot) '..\whiteboard-plugin-v1') -ErrorAction Stop
 $link = Join-Path $profileDir 'node_modules\@local\whiteboard'
 
 if (-not (Test-Path (Join-Path $v1 'package.json'))) {

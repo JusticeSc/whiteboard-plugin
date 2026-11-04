@@ -98,7 +98,7 @@
 
 | 编号 | 决策 | 状态 |
 |---|---|---|
-| R1 | **首次发布物 = 本目录 3.0.0**。按推荐采用**源码 GitHub 仓库 + MIT**：已发布 <https://github.com/JusticeSc/whiteboard-plugin>（`main` + `v3.0.0` tag + Release）；保留 `@local/whiteboard`/`private: true`，本次不走 npm；DSH 兼容声明待定。详见 [`RELEASE-v3.0.0.md`](RELEASE-v3.0.0.md) §4。 | 已发布 |
+| R1 | **首次发布物 = 本目录 3.0.0**。采用**源码 GitHub 仓库 + DSH bundle 安装 + MIT**：已发布 <https://github.com/JusticeSc/whiteboard-plugin>（`main` + `v3.0.0` tag + Release）；保留 `@local/whiteboard`/`private: true`，**不发布 npm**；`engines.dsh: >=0.2.1-rc.5 <0.3.0`。详见 [`RELEASE-v3.0.0.md`](RELEASE-v3.0.0.md) §4/§5。 | 已发布；不发布 npm |
 | R2 | **下一阶段方向 = canvas-first**：在保留选区编辑路径的基础上，增加整板引用、画板级“让 AI 画”入口、`whiteboard_create_diagram`（语义 nodes/edges + 自动布局）与生成预览/接受拒绝；先做 v3.1 最小闭环，再做 v4。详见 [`ROADMAP-v4.md`](ROADMAP-v4.md)。 | 方向已确认，待实施 |
 | R3 | 版本策略：首次发布保持 `3.0.0`（包含验收后修复）；发布后的 bugfix 升 `3.0.x`，功能升级升 `3.x`，破坏式升级升 `4.0`。 | 生效 |
 

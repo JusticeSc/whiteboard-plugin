@@ -19,6 +19,10 @@
 - 按（画板 × 会话）AI 开关，客户端 + Host 双侧执行（`ai_disabled`）。
 - 可选选区快照图片；原生停止生成；刷新/重启持久化。
 - Host 216 项、客户端 105 项自动化检查；隔离 e2e（真实 Chrome/模型）。
+- DSH bundle 元数据：`locale/en.json`、`locale/zh.json`（Plugin Manager 标题/描述）与 `icon.svg`；
+  `package.json` 声明 `engines.dsh: >=0.2.1-rc.5 <0.3.0`。
+- 分发方式明确为 GitHub 源码 + DSH bundle 安装；**不发布 npm**（保留 `private: true`、`@local/whiteboard`）。
+- 源码目录统一为 `whiteboard-plugin`；v1 保留为 `whiteboard-plugin-v1` 供回滚。
 
 ### Changed
 

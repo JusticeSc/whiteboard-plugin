@@ -94,6 +94,20 @@ docs/evidence-v3/  P0 证据（原一次性 spike 插件已删除）
 
 > 清理动作等用户确认后执行；不确认就保持原样，不影响 v3 开发（所有测试在隔离 home）。
 
+### 4.5 2026-11-04 12:2x 清理执行（用户确认「肯定要清理干净」）
+
+已执行并验证：
+
+- 删除测试会话 4 个：`session-d0738a2a`、`session-121a4a9d`、`session-2aef8e09`，以及已归档的
+  「只回复 LIVE-OK 验证」`session-e10700c4`；对应 `.dsh/sessions/...` 日志目录与
+  `storages/session_projcache/sessions/*.json` 一并删除。
+- 删除测试画板 `cv-mw0f4t6e-5kfc`（「画板 6」）。
+- 默认画板 `cv-mw0e4cs3-0yy2` 只删除 2 个测试元素 `el-mw0ffcho-2-nzu5`、`el-mw0fu2qt-1-e7wd`；
+  保留用户随后画的文字、笔迹和 50 个 AI 绘图元素（rev 46）。
+- 删除 6 个失效/测试 `session_pref`；`workspace.json` 中对应会话 id 已移除。
+- 备份：`E:\deepseek_harness_workspace\_cleanup-backup\20261104-122234`（不属于插件仓库）。
+- 清理后 3080 刷新页面：侧栏不再出现「问候」「只回复 LIVE-OK 验证」等测试会话；画板列表只剩默认画板。
+
 ### 4.4 2026-11-04 实机自查新增（已自行处理）
 
 - 临时画板「画板 3」（`cv-mw1f0ufo-jh05`）已通过画板下拉删除，store 中已不存在。
@@ -106,7 +120,7 @@ docs/evidence-v3/  P0 证据（原一次性 spike 插件已删除）
 
 - 版本：M1 完成 → `package.json` 升 `3.0.0`；`cordis.patch.yml` 不变。
 - 安装：`scripts/install-v3.ps1` → 用户重启 3080 → 验收。
-- 回滚：`scripts/rollback-v1.ps1` 指回 `../whiteboard-plugin`（v1 原样保留）；数据 schema 不变，回滚不迁移。
+- 回滚：`scripts/rollback-v1.ps1` 指回 `../whiteboard-plugin-v1`（v1 原样保留）；数据 schema 不变，回滚不迁移。
 - 不自动重启 3080；不自动删除真实数据；不把 `.spike/` 打包进插件。
 
 ## 6. 文档交付

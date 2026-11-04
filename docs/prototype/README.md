@@ -90,7 +90,7 @@
 `test/e2e/prototype-probe.mjs`（Playwright + 本机 Chrome，headless）：
 
 ```powershell
-cd <path-to>\whiteboard-plugin-v2\test\e2e
+cd <path-to>\whiteboard-plugin\test\e2e
 node prototype-probe.mjs
 ```
 

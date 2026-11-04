@@ -2,7 +2,7 @@
 
 - 状态：**已接受并实现（v2.0.0）**；已装入 profile，等待用户重启 3080 生效
 - 日期：2026-11-03
-- 取代：ADR-0001（v1 的"全局面板 + 全局 aiStore + 画布级单锁"实现，见 `../whiteboard-plugin/docs/agent-bridge.md` §12–13）
+- 取代：ADR-0001（v1 的"全局面板 + 全局 aiStore + 画布级单锁"实现，见 `../whiteboard-plugin-v1/docs/agent-bridge.md` §12–13）
 
 > **后续变更（2026-11-04，[ADR-0003](0003-canvas-agent-bridge.md)）**：本 ADR 的
 > **D12（AI 入口）**、**D18（工具契约）**、**D19（承载面）**、**D20（实施顺序）** 已被取代；

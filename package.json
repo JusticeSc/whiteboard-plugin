@@ -12,15 +12,22 @@
   "homepage": "https://github.com/JusticeSc/whiteboard-plugin#readme",
   "exports": {
     ".": "./index.js",
-    "./client": "./client.js"
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
   },
   "files": [
     "index.js",
     "client.js",
     "host/",
     "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
     "CHANGELOG.md"
   ],
+  "engines": {
+    "dsh": ">=0.2.1-rc.5 <0.3.0"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

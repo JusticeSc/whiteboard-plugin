@@ -11,7 +11,7 @@
  *   - no conversation-scoped whiteboard view remains (single .dsh-wb);
  *   - real DSH_HOME sessions/canvases are byte/mtime identical afterwards.
  *
- * Run: node test/e2e/v3.mjs   (from whiteboard-plugin-v2/test/e2e)
+ * Run: node test/e2e/v3.mjs   (from whiteboard-plugin/test/e2e)
  */
 import { spawn, execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';

@@ -1,7 +1,7 @@
 # 发布说明：`@local/whiteboard` 3.0.0
 
 > 状态：**已发布到 GitHub**（public repo + `v3.0.0` Release + MIT License）。
-> 代码/测试/实机验收已就绪；npm 发行方式仍待定，见 §4。
+> **分发方式 = DSH bundle 安装；不发布 npm**（见 §4/§5）。
 > 生成日期：2026-11-04（Asia/Shanghai）。
 
 ## 1. 发布物
@@ -18,20 +18,23 @@
 | GitHub Release | [v3.0.0 — 画板插件首次发布](https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0) |
 | 许可证 | MIT（见根目录 `LICENSE`） |
 
-发布物按 `package.json` 的 `files` 字段打包：
+发布物是可直接安装的 DSH bundle 目录，`package.json` 的 `files` 覆盖运行所需文件：
 
 ```
 index.js
 client.js
 host/
 cordis.patch.yml
-CHANGELOG.md        # 由 files 显式包含
-README.md           # npm 自动包含
-LICENSE             # npm 自动包含
+locale/en.json      # Plugin Manager 展示标题/描述
+locale/zh.json
+icon.svg            # bundle 图标
+CHANGELOG.md
+README.md
+LICENSE
 ```
 
-`docs/`、`scripts/`、`test/` 默认**不进 npm 包**；如果要随包分发安装脚本/文档，
-需要调整 `files` 或改为源码仓库分发。
+`docs/`、`scripts/`、`test/` 留在 GitHub 源码仓库，供开发/验证使用；本地目录安装时 DSH 会链接整个 checkout，
+但它们不参与运行时加载，也不发布到任何 registry。
 
 ## 2. 自 v3 开发基线以来的内容
 
@@ -73,29 +76,38 @@ LICENSE             # npm 自动包含
 
 | # | 决策 | 当前状态 | 下一步 |
 |---|---|---|---|
-| 1 | 发布形态 | **已发布到 GitHub（public 源码仓库）** | 后续更新走 `main`/PR；npm 另行决定 |
-| 2 | 包名 | 保留 `@local/whiteboard`（源码/bundle 名称） | 只有走 npm 时才需要换 scope，并同步 `cordis.patch.yml`、安装脚本、profile manifest |
-| 3 | `private` | 保留 `true` | 内部 bundle 可保留；npm 发布前移除 |
+| 1 | 发布形态 | **GitHub public 源码仓库 + DSH bundle 安装；不发 npm** | 使用者克隆仓库后用 `plugin_manager` / 插件页安装 bundle；后续更新走 `main`/PR |
+| 2 | 包名 | 保留 `@local/whiteboard`（bundle 名称） | 不走 npm，因此无需改 scope |
+| 3 | `private` | 保留 `true` | 不发布 npm；`private` 不阻止 DSH 从本地目录安装 |
 | 4 | 许可证 | **MIT**（已添加 `LICENSE` + `package.json`） | 无 |
-| 5 | 仓库 | **已 `git init` + 首次 commit + `v3.0.0` tag** | 添加远端并推送 |
-| 6 | DSH 兼容声明 | 仅实测 `0.2.1-rc.5` | 公开/正式发布前决定是否加 `peerDependencies`/最低版本说明 |
-| 7 | npm 包内容 | 本次不走 npm；源码仓库含 docs/test/scripts | 若后续发 npm：用 `files` 精简（当前 14 文件 / 65.5 kB，含 README/CHANGELOG/LICENSE） |
+| 5 | 仓库 | **已发布** `main` + `v3.0.0` tag + GitHub Release | 后续新提交/新 tag；不改写已发布 tag |
+| 6 | DSH 兼容声明 | 已加 `engines.dsh: >=0.2.1-rc.5 <0.3.0`（实测 `0.2.1-rc.5`） | DSH 升级后重新实测并放宽/收紧范围 |
+| 7 | 分发内容 | 源码仓库含 docs/test/scripts；`files` 含 host/client/patch/locale/icon | 不发布 npm；打包检查只用于验证 bundle 文件完整 |
 | 8 | 截图隐私 | 真实会话截图 `docs/evidence-v3/live-*.png` **已从 Git 排除**（`.gitignore`），仅本地保留；仓库内 e2e/spike 截图已裁掉左侧会话栏/头像 | 公开仓库如需实机截图，先脱敏 |
 
-`v3.0.0` 是当前已发布基线；npm 发布不在本次范围，若要发 npm 需先处理包名/`private`。
+`v3.0.0` 是当前已发布基线；**npm 不是本项目的分发渠道**，DSH bundle 从 GitHub 源码安装即可。
 
-## 5. 发布方式
+## 5. 发布方式（DSH 规则）
 
-### 方案 A：内部 bundle 分发（最贴近当前使用方式）
+DSH 的分发单位是 **bundle 包**，不是 npm 上的普通库：
 
-1. 确认 profile 链接指向本目录：`scripts\install-v3.ps1`。
-2. 把本目录整体打包/共享给使用者。
-3. 使用者将 `@local/whiteboard` 放到其 profile 的 `node_modules` 下（或 junction）。
-4. 重启 `dsh web`，刷新页面验证。
+- `package.json` 必须有 `dsh.bundle.patch`，指向 `cordis.patch.yml`；
+- patch 里 `insert` 的每一行是插件条目（`id` + `name` + `config`）；Host/Client 入口由 `name` 对应的导出解析；
+- 展示元数据来自 `locale/en.json` / `locale/zh.json` 的 `meta.title`、`meta.description`，图标来自 `./icon`；
+- 兼容性由 `engines.dsh`（或 DSH peer 依赖范围）声明，不满足时 Plugin Manager 在安装前拒绝，启动时也会拒绝；
+- 安装/升级用 DSH 的 Plugin Manager / `plugin_manager`（`install_bundle`），由 DSH 负责接入 profile；
+- **npm publish 不是 DSH 插件发布的必要条件**；本项目保持 `private: true`，不走 npm。
 
-优点：无需改包名/许可证；缺点：不是标准生态分发。
+### 方案 A：GitHub 源码 + DSH bundle 安装（本次采用）
 
-### 方案 B：GitHub 源码仓库（本次已采用）
+1. `git clone https://github.com/JusticeSc/whiteboard-plugin.git`。
+2. 在 DSH Web 的「插件」页或 agent 的 `plugin_manager` 里安装 bundle，目标填克隆目录的**绝对路径**。
+3. 启用 `whiteboard` bundle；Host JavaScript 首次安装/替换按提示重启 `dsh web`，仅 client 刷新页面即可。
+4. 用 `whiteboard_read_selection` / `whiteboard_replace_selection` 验证。
+
+优点：不依赖 npm registry，版本/源码可审查；缺点是使用者需要先拿到源码目录。
+
+### 方案 B：GitHub 仓库与 Release（已执行，作为源码来源）
 
 已发布到 <https://github.com/JusticeSc/whiteboard-plugin>（public，`main` + `v3.0.0` tag），
 并创建 [GitHub Release v3.0.0](https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0)。
@@ -103,7 +115,7 @@ LICENSE             # npm 自动包含
 本次执行过的步骤（可复现）：
 
 ```powershell
-cd <path-to>\whiteboard-plugin-v2
+cd <path-to>\whiteboard-plugin
 git init -b main
 git add .
 git commit -m "whiteboard v3.0.0"
@@ -114,17 +126,14 @@ gh release create v3.0.0 --repo JusticeSc/whiteboard-plugin --title "v3.0.0 — 
 ```
 
 后续更新：在 `main` 上提交/PR，按需打新 tag 和 Release；不要改写已发布的 `v3.0.0` tag。
+GitHub 仓库本身即可作为树内 bundle 源码；后续若需要单文件分发，可再附 Release 源码压缩包，
+但仍不需要 npm。
 
-`LICENSE`、`CHANGELOG.md` 已提供；`.gitignore` 已排除
-`.spike-e2e/`、`test/e2e/.artifacts/`、真实会话截图 `live-*.png` 等产物。
+### 方案 C：npm 包（**本项目不做**）
 
-### 方案 C：npm 包
-
-1. 改包名（如 `@your-scope/dsh-whiteboard`），移除 `"private": true`。
-2. 补 `license`、`repository`、`homepage`、`keywords`、`engines`/`peerDependencies`。
-3. 检查 `cordis.patch.yml` 与安装脚本中的包名一致。
-4. `npm pack --dry-run` 检查内容；`npm publish --access public`（或私有 registry）。
-5. 用干净 profile 安装并重启验证。
+`private: true`、包名 `@local/whiteboard`、无 registry scope；用户已明确不走 npm。
+如果未来改变决定，才需要改包名、移除 `private`、补 `license`/`repository`/`keywords` 并重新审查
+`files`；那属于另一条发布路线，不影响当前 DSH bundle 安装。
 
 ## 6. 发布前检查清单
 
@@ -134,13 +143,14 @@ gh release create v3.0.0 --repo JusticeSc/whiteboard-plugin --title "v3.0.0 — 
 - [x] `.gitignore` 排除临时产物（`.spike-e2e/`、`test/e2e/.artifacts/`、`node_modules/`）
 - [x] `npm test` 216 + 105 全绿
 - [x] `node test/e2e/v3.mjs` → E2E V3 OK，并更新 `v3-result.json`
-- [x] `npm pack --dry-run` 内容符合预期（14 文件 / 65.5 kB，含 README/CHANGELOG/LICENSE）
+- [x] DSH bundle 元数据：`dsh.bundle.patch`、`locale/en|zh.json`（title/description）、`icon.svg`、`exports`/`files`
+- [x] DSH 兼容声明：`engines.dsh: >=0.2.1-rc.5 <0.3.0`（实测 `0.2.1-rc.5`）
+- [x] `npm pack --dry-run` 内容符合预期（含 README/CHANGELOG/LICENSE/locale/icon；不发布 npm）
 - [x] README/INDEX/PROJECT-CONTEXT/RELEASE/CHANGELOG 链接可点
 - [x] 真实会话截图 `live-*.png` 已从公开 Git 排除（`docs/evidence-v3/README.md` 说明）
 - [x] 推送远端仓库 + 建 Release（<https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0>）
-- [ ] 公开/正式发布前决定 DSH 兼容声明（`peerDependencies`/最低版本）
-- [ ] 真实 store 旧测试残留清理（可选，需用户确认；见 `PLAN-v3.md` §4）
-- [x] 仓库名采用 `whiteboard-plugin`（源码目录仍为 `whiteboard-plugin-v2`，历史文档保留）
+- [x] 真实 store 旧测试残留已清理（2026-11-04 12:2x；备份见工作区 `_cleanup-backup/`）
+- [x] 仓库名/源码目录统一为 `whiteboard-plugin`；v1 保留为 `whiteboard-plugin-v1`（历史文档保留）
 
 ## 7. 发布后验证
 
@@ -155,7 +165,7 @@ gh release create v3.0.0 --repo JusticeSc/whiteboard-plugin --title "v3.0.0 — 
 ## 8. 回滚
 
 - 一步回滚：`powershell -ExecutionPolicy Bypass -File scripts\rollback-v1.ps1`
-  → profile 指回 `..\whiteboard-plugin`，重启 `dsh web`。
+  → profile 指回 `..\whiteboard-plugin-v1`，重启 `dsh web`。
 - 数据：canvas doc schema 未变，回滚 v1 不会破坏 v3 画板数据；但 v1 不读
   `session_pref.aiByCanvas`，行为回到旧版。
 - 同目录代码回滚：`git checkout v3.0.0` 可回到本次发布基线；发布后的修改用

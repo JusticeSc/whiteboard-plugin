@@ -3,7 +3,7 @@
 两个脚本，都**不会**碰正在运行的 3080，也不写真实 `DSH_HOME`：
 
 ```powershell
-cd <path-to>\whiteboard-plugin-v2
+cd <path-to>\whiteboard-plugin
 
 node test/e2e/v3.mjs                # v3 全流程；自起隔离 DSH_HOME（<workspace>\.spike-e2e）+ 端口 3092
 node test/e2e/install-rollback.mjs  # profile 链接 v1↔v2 反转，各起 throwaway host 验证安装/回滚
@@ -17,8 +17,8 @@ node test/e2e/install-rollback.mjs  # profile 链接 v1↔v2 反转，各起 thr
 - `install-rollback.mjs`：会临时改真实 profile 的 `@local/whiteboard` junction，结束后恢复原状；
   只应在确实要验证安装/回滚时手动运行，不要在 3080 正在使用的会话里跑。
 - 依赖 `playwright-core`：本目录的 `node_modules` 是指向
-  `..\..\..\whiteboard-plugin\test\e2e\node_modules` 的 junction（v1 目录里已有）。
-  若该目录不存在，在 `whiteboard-plugin-v2\test\e2e` 下执行 `npm i playwright-core`，
+  `..\..\..\whiteboard-plugin-v1\test\e2e\node_modules` 的 junction（v1 目录里已有）。
+  若该目录不存在，在 `whiteboard-plugin\test\e2e` 下执行 `npm i playwright-core`，
   并用本机 Chrome（`--channel=chrome`）。
 - 隔离环境手工复现：`pwsh scripts\spike-env.ps1 -Port 3091 -PluginPath .`（脚本仍保留；
   `.spike\dsh-home` 与 e2e 的 `.spike-e2e` 互不影响）。

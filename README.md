@@ -8,7 +8,7 @@
 决策见 [`docs/DECISIONS.md`](docs/DECISIONS.md)，架构见
 [`docs/adr/0003-canvas-agent-bridge.md`](docs/adr/0003-canvas-agent-bridge.md)，
 验收见 [`docs/ACCEPTANCE-v3.md`](docs/ACCEPTANCE-v3.md)。
-v1（`../whiteboard-plugin`）原样保留，回滚只需把 profile 链接指回它并重启。
+v1（`../whiteboard-plugin-v1`）原样保留，回滚只需把 profile 链接指回它并重启。
 
 > **发布/交接入口**：[项目上下文](docs/PROJECT-CONTEXT.md) ·
 > [发布说明与检查清单](docs/RELEASE-v3.0.0.md) ·
@@ -81,14 +81,14 @@ CHANGELOG.md                 版本变更记录
 docs/adr/0003-canvas-agent-bridge.md   v3 架构：右侧栏承载 + 选区引用桥接
 docs/evidence-v3/            P0 spike 结论/截图 + v3 e2e 结果/截图
 scripts/install-v3.ps1       把 profile 的 @local/whiteboard 指向本目录（重启后生效）
-scripts/rollback-v1.ps1      把 profile 指回 ../whiteboard-plugin（一步回滚）
+scripts/rollback-v1.ps1      把 profile 指回 ../whiteboard-plugin-v1（一步回滚）
 scripts/spike-env.ps1        隔离 DSH_HOME + 端口起 dsh web（手工排查/复现 e2e 环境）
 ```
 
 ## 测试
 
 ```powershell
-cd <path-to>\whiteboard-plugin-v2
+cd <path-to>\whiteboard-plugin
 npm test                      # = node test/smoke.mjs && node test/client-smoke.mjs
 # 期望：216 checks passed / SMOKE OK；105 checks passed / CLIENT SMOKE OK
 ```
@@ -96,7 +96,7 @@ npm test                      # = node test/smoke.mjs && node test/client-smoke.
 端到端（隔离，不碰 3080、不写真实 `DSH_HOME`）：
 
 ```powershell
-cd <path-to>\whiteboard-plugin-v2
+cd <path-to>\whiteboard-plugin
 node test/e2e/v3.mjs
 # 自起隔离 DSH_HOME（<workspace>\.spike-e2e，每次跑前清空）+ 端口 3092，
 # 真实 Chrome，4 个真实模型回合（引用 / 快照 / 模型改画板+撤销 / AI 关拒绝）；结束时对比真实 store 快照（零写入）。
@@ -116,14 +116,32 @@ AI 开关关闭/开启（断言按钮状态、dock 隐藏/恢复、`/session-pre
 缩到 900×700 窄窗（断言 dock 仍对齐、画板工具栏换行无横向溢出）→
 真实 store 零写入 → 0 pageerror/console error。
 
-## 安装 / 切换 / 回滚
+## 安装（DSH bundle，无需 npm）
 
-**切换（需用户重启 3080 后生效）**
+DSH 的插件分发单位是 **bundle 包**，不是 npm 上的普通库：
+
+- `package.json` 声明 `dsh.bundle.patch`，`cordis.patch.yml` 负责把插件行插入 profile；
+- DSH 启动时按 profile 的 bundles 顺序加载，`engines.dsh` 不满足会在安装/启动时拒绝；
+- Plugin Manager 读取包里的 `locale/*.json` 的 `meta.title` / `meta.description` 和 `./icon` 作为展示信息；
+- 因此**不需要 `npm publish`**：直接从 GitHub 源码安装即可。npm 只决定分发渠道，不是 DSH 插件的运行要求。
+
+**方式 A：从 GitHub 源码安装（推荐给使用者）**
 
 ```powershell
-cd <path-to>\whiteboard-plugin-v2
+git clone https://github.com/JusticeSc/whiteboard-plugin.git
+# 在 DSH Web 的「插件」页 / agent 的 plugin_manager 中选择安装 bundle，
+# 目标用克隆目录的绝对路径；安装后启用 whiteboard bundle。
+```
+
+DSH 内部的 Plugin Manager 会用 pnpm 把这个目录接入当前 profile，但不会去 npm 发布或下载本项目。
+首次安装/替换 Host JavaScript 后按 DSH 提示重启 `dsh web`；仅 client 更新刷新页面即可。
+
+**方式 B：本地开发目录直连（当前工作区，仅开发）**
+
+```powershell
+cd <path-to>\whiteboard-plugin
 powershell -ExecutionPolicy Bypass -File scripts\install-v3.ps1
-# 确认输出 "installed @local/whiteboard -> ...whiteboard-plugin-v2"
+# 确认输出 "installed @local/whiteboard -> ...whiteboard-plugin"
 # 然后由用户停掉旧 dsh web 进程并重新启动（会结束当前会话）
 ```
 
@@ -131,11 +149,11 @@ powershell -ExecutionPolicy Bypass -File scripts\install-v3.ps1
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\rollback-v1.ps1
-# 把 profile 链接指回 ..\whiteboard-plugin，重启 3080 即回到 v1
+# 把 profile 链接指回 ..\whiteboard-plugin-v1，重启 3080 即回到 v1
 ```
 
-两个脚本只改 profile 的 `node_modules/@local/whiteboard` 链接（junction），不删 v1 目录、
-不动 3080 进程。脚本是幂等的，可反复执行。
+脚本只改 profile 的 `node_modules/@local/whiteboard` 链接（junction），不删 v1 目录、
+不动 3080 进程；脚本幂等，可反复执行。脚本里的目录直连只是本地开发捷径，公开安装请走方式 A。
 
 ## 在 GUI 里使用（v3）
 

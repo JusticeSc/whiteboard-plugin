@@ -10,7 +10,7 @@
  *
  * The link is restored to whatever it was before the run, even on failure.
  *
- * Run: node test/e2e/install-rollback.mjs   (from whiteboard-plugin-v2)
+ * Run: node test/e2e/install-rollback.mjs   (from whiteboard-plugin)
  */
 import { spawn, execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';

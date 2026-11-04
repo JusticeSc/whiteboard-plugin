@@ -25,7 +25,7 @@
 ## 发布相关
 
 - 版本号：`3.0.0`（首次公开发布，包含 QA 期修复）
-- 兼容目标：`@deepseek-ai/dsh` `0.2.1-rc.5`（2026-11-04 实测环境）
+- 兼容目标：`@deepseek-ai/dsh` `0.2.1-rc.5`（`engines.dsh: >=0.2.1-rc.5 <0.3.0`）
 - 包形态：DSH Cordis bundle（`cordis.patch.yml` 插入 `@local/whiteboard`）
-- 发布形态：**已发布到 GitHub** <https://github.com/JusticeSc/whiteboard-plugin>（public，`v3.0.0` tag + Release + MIT）；
-  npm 待定，见 [`RELEASE-v3.0.0.md`](RELEASE-v3.0.0.md) §4。
+- 发布形态：**GitHub 源码 + DSH bundle 安装** <https://github.com/JusticeSc/whiteboard-plugin>
+  （public，`v3.0.0` tag + Release + MIT）；**不发布 npm**，见 [`RELEASE-v3.0.0.md`](RELEASE-v3.0.0.md) §4/§5。

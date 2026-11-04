@@ -11,7 +11,7 @@
 ## 1. 环境（已备好脚本）
 
 ```powershell
-cd <path-to>\whiteboard-plugin-v2
+cd <path-to>\whiteboard-plugin
 pwsh scripts/spike-env.ps1                    # 启动隔离 GUI（3091，输出带 token 的 URL）
 pwsh scripts/spike-env.ps1 -PluginPath spike  # 先安装 spike 插件再启动
 pwsh scripts/spike-env.ps1 -Stop              # 停止并释放端口

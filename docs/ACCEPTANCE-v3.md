@@ -100,7 +100,7 @@
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\rollback-v1.ps1
-# 把 profile 链回 ../whiteboard-plugin，重启 3080 即回到 v1
+# 把 profile 链回 ../whiteboard-plugin-v1，重启 3080 即回到 v1
 ```
 
 v2 的 `/api/whiteboard/v2` 数据格式未变，v3 只是换了承载与入口；回滚 v1 不会读 v3 的 session_pref 新字段（`aiByCanvas` 被忽略），旧画板文档仍可被 v1 读取。

@@ -121,7 +121,7 @@
 ## 8. 验证方式
 
 ```powershell
-cd <path-to>\whiteboard-plugin-v2
+cd <path-to>\whiteboard-plugin
 npm test                 # 216 + 105 checks
 node test/e2e/v3.mjs     # 隔离 DSH_HOME + 端口 3092，真实 Chrome/模型，约 3–5 分钟
 ```
@@ -140,7 +140,7 @@ node test/e2e/v3.mjs     # 隔离 DSH_HOME + 端口 3092，真实 Chrome/模型�
 - 安装/切换：`powershell -ExecutionPolicy Bypass -File scripts\install-v3.ps1`
   然后重启 3080（会结束当前会话）。
 - 回滚：`powershell -ExecutionPolicy Bypass -File scripts\rollback-v1.ps1`
-  把链接指回 `..\whiteboard-plugin`，重启生效。
+  把链接指回 `..\whiteboard-plugin-v1`，重启生效。
 - 两个脚本只改 profile 的 junction，不删旧目录、不动运行中的 3080。
 - client 改动刷新页面即生效；Host 改动需要重启 `dsh web`。
 
@@ -167,9 +167,10 @@ node test/e2e/v3.mjs     # 隔离 DSH_HOME + 端口 3092，真实 Chrome/模型�
 
 ## 12. 发布状态（详见 RELEASE）
 
-- 发布形态：**已发布到 GitHub public 源码仓库**：<https://github.com/JusticeSc/whiteboard-plugin>。
-- 包名：保留 `@local/whiteboard`、`"private": true`；本次不走 npm，未来发 npm 再改 scope/移除 private。
+- 发布形态：**GitHub public 源码仓库 + DSH bundle 安装**：<https://github.com/JusticeSc/whiteboard-plugin>。
+- 包名：保留 `@local/whiteboard`、`"private": true`；**不发布 npm**（DSH 从源码目录安装 bundle）。
 - 许可证：**MIT**（`LICENSE` + `package.json` 已同步）。
 - 仓库：`main` + `v3.0.0` tag 已推送；[Release v3.0.0](https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0) 已建。
-- 兼容性：仅在 DSH `0.2.1-rc.5` 实测；公开/正式发布前决定是否声明 peer/engines。
-- 真实 store 旧测试残留清理仍需用户确认（与发布物无关，但会影响演示环境干净度）。
+- 兼容性：`engines.dsh: >=0.2.1-rc.5 <0.3.0`，实测 DSH `0.2.1-rc.5`。
+- 安装元数据：`dsh.bundle.patch` + `locale/en|zh.json`（title/description）+ `icon.svg`；Plugin Manager 可读。
+- 真实 store 旧测试残留已于 2026-11-04 清理（会话/画板/元素/pref；备份在 `_cleanup-backup/`）。
