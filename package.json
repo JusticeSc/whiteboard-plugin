@@ -1,0 +1,36 @@
+{
+  "name": "@local/whiteboard",
+  "version": "3.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Canvas v3 whiteboard plugin: durable canvas documents in a right-sidebar tab, selection references bridged into the normal composer, and Host-enforced AI tools for atomic canvas edits.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "host/",
+    "cordis.patch.yml",
+    "CHANGELOG.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node test/smoke.mjs && node test/client-smoke.mjs",
+    "test:e2e": "node test/e2e/v3.mjs"
+  }
+}

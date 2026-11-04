@@ -1,0 +1,139 @@
+{
+  "host": "http://127.0.0.1:3092",
+  "carrier": {
+    "boardRoots": 1,
+    "hasCanvas": true,
+    "tabTitle": "mounted",
+    "aiToggle": "true",
+    "legacyViewTab": false
+  },
+  "keepMounted": {
+    "mounted": true,
+    "hidden": true,
+    "canvases": 1,
+    "visibleAgain": true
+  },
+  "draw": {
+    "canvasId": "cv-mw1kwf8y-b8ua",
+    "elements": 2
+  },
+  "dock": {
+    "label": "◈ 画板选区 · 2 个对象",
+    "alignment": {
+      "chipLeft": 296,
+      "editorLeft": 296,
+      "delta": 0
+    },
+    "wideAlignment": {
+      "chipLeft": 421,
+      "editorLeft": 421,
+      "cardLeft": 421,
+      "delta": 0
+    }
+  },
+  "chip": {
+    "chips": 1,
+    "composer": "@\n画板选区 · 2 个对象"
+  },
+  "send": {
+    "modelAnswered": true,
+    "transcriptHasChipLabel": true,
+    "transcriptHasInstruction": true,
+    "rawHeaderVisible": false
+  },
+  "aiOff": {
+    "pressed": "false",
+    "dockVisible": false,
+    "prefWrite": {
+      "sessionId": "session-0c8bc270-28eb-495f-b9b1-d027a9175d6b",
+      "aiByCanvas": {
+        "cv-mw1kwf8y-b8ua": false
+      }
+    },
+    "prefStored": {
+      "aiByCanvas": {
+        "cv-mw1kwf8y-b8ua": false
+      },
+      "updatedAt": 1793764225344
+    }
+  },
+  "aiOn": {
+    "pressed": "true",
+    "dockVisible": true,
+    "prefWrite": {
+      "sessionId": "session-0c8bc270-28eb-495f-b9b1-d027a9175d6b",
+      "aiByCanvas": {
+        "cv-mw1kwf8y-b8ua": true
+      }
+    }
+  },
+  "snapshot": {
+    "pressed": "true",
+    "previewImages": 1,
+    "modelAnswered": true,
+    "messageImages": 1,
+    "chipLabel": true
+  },
+  "aiWrite": {
+    "canvasId": "cv-mw1kwf8y-b8ua",
+    "rev": 2,
+    "ids": [
+      "el-mw1kwh2z-1-8lcy",
+      "el-mw1kwhj4-2-m1co"
+    ],
+    "before": [
+      "ink",
+      "ink"
+    ],
+    "attempts": 1,
+    "after": [
+      "accent",
+      "accent"
+    ],
+    "revAfter": 3,
+    "toasts": [
+      "AI 修改了 2 处撤销"
+    ],
+    "toast": "AI 修改了 2 处撤销",
+    "undoVisible": 1,
+    "undone": true,
+    "undoPath": "toast"
+  },
+  "aiReject": {
+    "pressed": "false",
+    "colors": [
+      "ink",
+      "ink"
+    ],
+    "rev": 4,
+    "originalRev": 4,
+    "reEnabled": "true"
+  },
+  "dockReinsert": {
+    "first": 1,
+    "second": 1
+  },
+  "reload": {
+    "boardMounted": true,
+    "boardVisible": true,
+    "canvases": 1,
+    "aiPressed": "true",
+    "transcriptChip": true
+  },
+  "narrowViewport": {
+    "viewport": [
+      900,
+      700
+    ],
+    "chipLeft": 72,
+    "editorLeft": 72,
+    "delta": 0,
+    "barOverflow": 0
+  },
+  "zeroWrite": {
+    "ok": true,
+    "diffs": []
+  },
+  "pageErrors": [],
+  "consoleErrors": []
+}

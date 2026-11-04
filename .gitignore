@@ -1,0 +1,7 @@
+node_modules/
+test/e2e/.artifacts/
+.spike-e2e/
+*.log
+.DS_Store
+Thumbs.db
+docs/evidence-v3/live-*.png

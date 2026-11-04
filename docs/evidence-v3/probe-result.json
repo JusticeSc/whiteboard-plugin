@@ -1,0 +1,127 @@
+{
+  "tab": {
+    "ok": true,
+    "info": "tab: wb-spike / tab2 · session: session-1fc65418-8a24-40b2-b081-c53475fce15f"
+  },
+  "width": [
+    {
+      "cls": "wb-spike-body",
+      "w": 575,
+      "h": 161
+    },
+    {
+      "cls": "DIV",
+      "w": 0,
+      "h": 0
+    },
+    {
+      "cls": "P3OORG_tabBody",
+      "w": 575,
+      "h": 762
+    },
+    {
+      "cls": "_tabHostBody_6nhg2_181 _paneBody_6nhg2_318",
+      "w": 575,
+      "h": 762
+    },
+    {
+      "cls": "_tabHost_6nhg2_162 _pane_6nhg2_209",
+      "w": 576,
+      "h": 800
+    },
+    {
+      "cls": "_tabCell_6nhg2_142",
+      "w": 576,
+      "h": 800
+    },
+    {
+      "cls": "_tabLayout_6nhg2_134",
+      "w": 576,
+      "h": 800
+    },
+    {
+      "cls": "_surface_6nhg2_125",
+      "w": 576,
+      "h": 800
+    }
+  ],
+  "chipInsert": {
+    "status": "insert chip → {\"ok\":true}",
+    "composer": "@\n画板选区 · 3 个对象\n "
+  },
+  "preview": {
+    "ok": true,
+    "text": "【画板选区引用】默认画板 · 3 个对象 · rev 7\n- o1 · 矩形 · 位置(120,80) · 200×120 · 填充 #FFF1B8 · 描边 #8A6D1F · 圆角 8 · 文本「入口」\n- o2 · 箭头 · (320,140) → (520,140) · 描边 #333333 · 线宽 2.2\n- o3 · 文本 · 位置(120,240) · 字号 22 · 颜色 #333333 · 内容「请求进入网关」"
+  },
+  "codec": {
+    "previewOk": true,
+    "text": "【画板选区引用】默认画板 · 3 个对象 · rev 7\n- o1 · 矩形 · 位置(120,80) · 200×120 · 填充 #FFF1B8 · 描边 #8A6D1F · 圆角 8 · 文本「入口」\n- o2 · 箭头 · (320"
+  },
+  "image": {
+    "status": "attach image → {\"ok\":true,\"ids\":[\"f0cc4f54-91be-4fb4-92c9-ed3de5520cb9\"]}",
+    "composerHasImage": true,
+    "transcriptImgs": 1
+  },
+  "send": {
+    "transcriptHasRefLabel": true,
+    "modelEchoedHeader": true
+  },
+  "tool": {
+    "rev": 1,
+    "calls": [
+      {
+        "tool": "wb_spike_replace",
+        "result": {
+          "ok": true,
+          "rev": 1,
+          "applied": [
+            {
+              "id": "e1",
+              "set": [
+                "x"
+              ]
+            }
+          ],
+          "ignored": []
+        }
+      },
+      {
+        "tool": "wb_spike_replace",
+        "result": {
+          "ok": false,
+          "error": "stale_revision",
+          "rev": 1
+        }
+      }
+    ]
+  },
+  "aiSwitch": {
+    "aiEnabled": false,
+    "lastCall": {
+      "tool": "wb_spike_status",
+      "sessionId": "session-1fc65418-8a24-40b2-b081-c53475fce15f",
+      "at": 1793728951797,
+      "result": {
+        "ok": false,
+        "error": "ai_disabled"
+      }
+    }
+  },
+  "keepMounted": {
+    "mountedBefore": true,
+    "mountedDuring": {
+      "mounted": true,
+      "visible": false
+    },
+    "mountedBack": true
+  },
+  "cancel": {
+    "status": "cancel → {\"ok\":true,\"out\":{\"ok\":true,\"value\":{\"accepted\":true}}}",
+    "stoppedBefore": 0,
+    "detached": true,
+    "ms": 432,
+    "grew": 28
+  },
+  "errors": [],
+  "consoleErrors": []
+}

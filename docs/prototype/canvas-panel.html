@@ -1,0 +1,1940 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>画板交互原型 · 对话与画板并存</title>
+<style>
+  :root {
+    --bg: #f2f4f8;
+    --panel: #ffffff;
+    --line: #e3e7ef;
+    --line-strong: #d3dae7;
+    --text: #1b2233;
+    --muted: #69718a;
+    --faint: #98a0b3;
+    --accent: #3f6ef2;
+    --accent-ink: #ffffff;
+    --accent-weak: #eef2fe;
+    --green: #1f9d55;
+    --green-weak: #e9f7ef;
+    --red: #d92d20;
+    --red-weak: #fdecea;
+    --amber: #b25e09;
+    --amber-weak: #fdf3e6;
+    --shadow: 0 12px 34px rgba(20, 30, 60, .16), 0 2px 6px rgba(20, 30, 60, .08);
+    --shadow-soft: 0 4px 14px rgba(20, 30, 60, .10);
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 13.5px/1.55 "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  button { font: inherit; color: inherit; }
+  textarea { font: inherit; color: inherit; }
+
+  /* ---------- shell ---------- */
+  .app { height: 100dvh; display: flex; flex-direction: column; }
+  .topbar {
+    height: 46px; flex: none; display: flex; align-items: center; gap: 12px;
+    padding: 0 14px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.86);
+    backdrop-filter: blur(6px);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: .2px; }
+  .brand-mark {
+    width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center;
+    background: #1b2233; color: #fff; font-size: 12px;
+  }
+  .brand small { color: var(--faint); font-weight: 500; margin-left: 2px; }
+  .session-title { display: flex; align-items: center; gap: 8px; min-width: 0; margin-left: 6px; }
+  .session-title .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tag {
+    flex: none; font-size: 11.5px; color: var(--muted); border: 1px solid var(--line);
+    background: #fff; border-radius: 999px; padding: 2px 8px;
+  }
+  .top-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .proto-badge {
+    font-size: 11.5px; color: var(--amber); background: var(--amber-weak);
+    border: 1px solid #f2dcbb; border-radius: 999px; padding: 2px 9px; letter-spacing: .3px;
+  }
+  .ghost-btn {
+    border: 1px solid var(--line); background: #fff; border-radius: 9px;
+    padding: 5px 10px; font-size: 12.5px; color: var(--muted); cursor: pointer;
+  }
+  .ghost-btn:hover { border-color: var(--line-strong); color: var(--text); }
+  .icon-btn {
+    width: 28px; height: 28px; border-radius: 8px; border: 1px solid transparent;
+    background: transparent; cursor: pointer; color: var(--muted); font-size: 15px;
+    display: grid; place-items: center; line-height: 1;
+  }
+  .icon-btn:hover { background: #f0f3f9; color: var(--text); }
+
+  .workspace {
+    flex: 1; min-height: 0; display: grid; gap: 10px; padding: 10px;
+    grid-template-columns: minmax(360px, 0.86fr) minmax(540px, 1.14fr);
+  }
+  .workspace.no-panel { grid-template-columns: minmax(360px, 920px); justify-content: center; }
+  @media (max-width: 1080px) {
+    .workspace { grid-template-columns: 1fr; grid-template-rows: minmax(230px, 42%) minmax(360px, 1fr); }
+  }
+
+  /* ---------- conversation ---------- */
+  .conv {
+    min-height: 0; min-width: 0; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; box-shadow: var(--shadow-soft);
+  }
+  .conv-head {
+    flex: none; height: 40px; display: flex; align-items: center; gap: 8px;
+    padding: 0 12px; border-bottom: 1px solid var(--line);
+  }
+  .conv-head .title { font-weight: 600; }
+  .conv-head .sub { color: var(--faint); font-size: 12px; }
+  .conv-head .spacer { flex: 1; }
+  .chip-btn {
+    border: 1px solid var(--line); background: #fff; border-radius: 999px;
+    padding: 3px 10px; font-size: 12px; color: var(--accent); cursor: pointer;
+  }
+  .chip-btn:hover { background: var(--accent-weak); }
+  .conv-scroll {
+    flex: 1; min-height: 0; overflow: auto; padding: 14px 14px 6px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .msg { max-width: 90%; font-size: 13.5px; line-height: 1.62; white-space: pre-wrap; }
+  .msg.user {
+    align-self: flex-end; background: var(--accent-weak); color: #17306b;
+    border-radius: 12px 12px 4px 12px; padding: 9px 12px;
+  }
+  .msg.ai {
+    align-self: flex-start; background: #f7f8fb; border: 1px solid var(--line);
+    border-radius: 12px 12px 12px 4px; padding: 9px 12px;
+  }
+  .msg .who { display: block; font-size: 11px; color: var(--faint); margin-bottom: 3px; }
+  .msg .msg-ref {
+    display: inline-flex; align-items: center; gap: 4px; margin: 0 6px 0 0; padding: 1px 7px;
+    border-radius: 6px; background: rgba(63,110,242,.14); color: #2c4a9e; font-size: 11.5px;
+    vertical-align: 1px;
+  }
+
+  /* operation card (画板操作) */
+  .ops-card {
+    width: 100%; max-width: none; align-self: stretch; border: 1px solid var(--line);
+    border-radius: 11px; background: #fff; padding: 10px 12px; box-shadow: var(--shadow-soft);
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  .ops-card[data-state="running"] { border-color: #cfdcff; background: #fbfcff; }
+  .ops-card[data-state="applied"] { border-color: #cfeadd; background: var(--green-weak); }
+  .ops-card[data-state="undone"] { background: #fafbfd; }
+  .ops-card[data-state="failed"] { border-color: #f3cdc8; background: var(--red-weak); }
+  .ops-head { display: flex; align-items: center; gap: 8px; }
+  .ops-glyph {
+    width: 20px; height: 20px; border-radius: 6px; flex: none; display: grid; place-items: center;
+    background: #eef1f7; color: #5b637a; font-size: 12px;
+  }
+  .ops-card[data-state="running"] .ops-glyph { background: var(--accent-weak); color: var(--accent); }
+  .ops-card[data-state="applied"] .ops-glyph { background: #dff2e7; color: var(--green); }
+  .ops-card[data-state="failed"] .ops-glyph { background: #fbdedb; color: var(--red); }
+  .ops-title { font-weight: 600; font-size: 13px; }
+  .ops-state { margin-left: auto; font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .ops-card[data-state="applied"] .ops-state { color: var(--green); }
+  .ops-card[data-state="failed"] .ops-state { color: var(--red); }
+  .ops-prompt { font-size: 12.8px; color: #2b3347; }
+  .ops-meta { font-size: 11.8px; color: var(--muted); }
+  .ops-actions { display: flex; align-items: center; gap: 12px; padding-top: 1px; }
+  .link-btn {
+    border: none; background: transparent; padding: 0; cursor: pointer;
+    font-size: 12.3px; color: var(--accent);
+  }
+  .link-btn:hover { text-decoration: underline; }
+  .link-btn.muted { color: var(--muted); }
+  .link-btn.danger { color: var(--red); }
+  .link-btn[disabled] { color: var(--faint); cursor: default; text-decoration: none; }
+  .micro-spin {
+    width: 12px; height: 12px; border-radius: 50%; flex: none;
+    border: 1.6px solid #c9d4f8; border-top-color: var(--accent);
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .composer {
+    flex: none; display: flex; flex-direction: column; gap: 7px; padding: 10px 12px 12px;
+    border-top: 1px solid var(--line); background: #fff;
+  }
+  .composer-row { display: flex; align-items: flex-end; gap: 8px; }
+  .composer textarea {
+    flex: 1; resize: none; min-height: 36px; max-height: 120px; padding: 8px 10px;
+    border: 1px solid var(--line); border-radius: 10px; background: #fbfcfe;
+    outline: none; font-size: 13px; line-height: 1.5;
+  }
+  .composer textarea:focus { border-color: #b9c8f5; box-shadow: 0 0 0 3px rgba(63,110,242,.10); background: #fff; }
+  .send-btn {
+    flex: none; width: 34px; height: 34px; border-radius: 10px; border: none;
+    background: var(--accent); color: #fff; cursor: pointer; font-size: 16px;
+  }
+  .send-btn:hover { filter: brightness(1.05); }
+  .send-btn[disabled] { background: #dfe4ef; color: #9aa3b8; cursor: default; }
+
+  /* ---------- canvas panel ---------- */
+  .panel {
+    min-height: 0; min-width: 0; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; box-shadow: var(--shadow-soft); transition: box-shadow .25s ease, border-color .25s ease;
+  }
+  .panel.flash { border-color: #b9c8f5; box-shadow: 0 0 0 4px rgba(63,110,242,.10), var(--shadow-soft); }
+  .panel-head {
+    flex: none; height: 40px; display: flex; align-items: center; gap: 8px;
+    padding: 0 10px 0 12px; border-bottom: 1px solid var(--line);
+  }
+  .panel-head .title { font-weight: 600; }
+  .board-name {
+    font-size: 12px; color: var(--muted); border: 1px solid var(--line);
+    border-radius: 999px; padding: 1px 8px; background: #fff;
+  }
+  .panel-head .spacer { flex: 1; }
+  .panel-tools {
+    flex: none; height: 42px; display: flex; align-items: center; gap: 4px;
+    padding: 0 10px; border-bottom: 1px solid var(--line); background: #fbfcfe;
+  }
+  .tool-btn {
+    width: 28px; height: 28px; border-radius: 8px; border: 1px solid transparent;
+    background: transparent; cursor: pointer; color: #4b5468; display: grid; place-items: center;
+    font-size: 14.5px;
+  }
+  .tool-btn:hover { background: #eef1f7; }
+  .tool-btn.active { background: var(--accent-weak); border-color: #cfdcff; color: var(--accent); }
+  .tool-sep { width: 1px; height: 18px; background: var(--line); margin: 0 5px; }
+  .swatch { width: 17px; height: 17px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); cursor: default; }
+  .tool-right { margin-left: auto; display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+  .zoom-pill { border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; background: #fff; font-size: 12px; color: var(--muted); }
+
+  .stage {
+    position: relative; flex: 1; min-height: 0; overflow: hidden; outline: none;
+    background:
+      radial-gradient(circle at 1px 1px, #dfe4ee 1px, transparent 0) 0 0 / 22px 22px,
+      #fbfcfe;
+    cursor: default;
+  }
+  .shape-layer, .sel-layer { position: absolute; inset: 0; }
+  .sel-layer { pointer-events: none; }
+
+  /* shapes */
+  .shape { position: absolute; box-sizing: border-box; cursor: move; user-select: none; }
+  .shape.rect { background: #fff; }
+  .shape.ellipse { background: #fff; border-radius: 50%; }
+  .shape.text { cursor: move; display: flex; align-items: center; }
+  .shape .label {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; color: var(--text); pointer-events: none; padding: 6px; text-align: center;
+  }
+  .shape.locked { cursor: progress; }
+  .shape.locked::after {
+    content: "AI"; position: absolute; top: -8px; right: -8px; width: 18px; height: 18px;
+    border-radius: 50%; background: var(--accent); color: #fff; font-size: 9px; font-weight: 700;
+    display: grid; place-items: center; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  }
+  .shape.flash { animation: shape-flash 1.8s ease-out; }
+  @keyframes shape-flash {
+    0% { box-shadow: 0 0 0 0 rgba(63,110,242,.55); }
+    35% { box-shadow: 0 0 0 6px rgba(63,110,242,.22); }
+    100% { box-shadow: 0 0 0 0 rgba(63,110,242,0); }
+  }
+  .shape.gone { display: none; }
+
+  /* selection overlay */
+  .sel-outline {
+    position: absolute; border: 1.4px dashed var(--accent); border-radius: 3px; pointer-events: none;
+    box-shadow: 0 0 0 1px rgba(63,110,242,.12) inset;
+  }
+  .sel-handle {
+    position: absolute; width: 8px; height: 8px; background: #fff; border: 1.4px solid var(--accent);
+    border-radius: 2px; pointer-events: none;
+  }
+
+  /* floating toolbar */
+  .selbar {
+    position: absolute; display: flex; align-items: center; gap: 2px; padding: 3px;
+    background: #20242e; border-radius: 11px; box-shadow: var(--shadow); z-index: 20;
+  }
+  .selbar button {
+    height: 28px; border: none; background: transparent; color: #e8ebf3; border-radius: 8px;
+    padding: 0 9px; cursor: pointer; font-size: 12.3px; display: flex; align-items: center; gap: 5px;
+    white-space: nowrap;
+  }
+  .selbar button:hover { background: rgba(255,255,255,.10); }
+  .selbar button.primary { background: var(--accent); color: #fff; font-weight: 600; }
+  .selbar button.primary:hover { filter: brightness(1.07); }
+  .selbar .divider { width: 1px; height: 16px; background: rgba(255,255,255,.16); margin: 0 2px; }
+
+  /* run chip */
+  .ai-chip {
+    position: absolute; z-index: 22; display: flex; align-items: center; gap: 8px;
+    background: #fff; border: 1px solid #cfdcff; border-radius: 999px; padding: 5px 9px 5px 10px;
+    box-shadow: var(--shadow); font-size: 12.3px; color: #253a72;
+  }
+  .ai-chip .chip-main { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+  .ai-chip .stop { color: var(--red); cursor: pointer; border: none; background: transparent; font-size: 12.3px; padding: 0 2px; }
+  .ai-chip .stop:hover { text-decoration: underline; }
+
+  /* steps popover */
+  .steps-pop {
+    position: absolute; z-index: 30; width: 300px; background: #fff; border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: var(--shadow); padding: 11px 12px; font-size: 12.4px;
+  }
+  .steps-pop h4 { margin: 0 0 8px; font-size: 12.5px; display: flex; align-items: center; gap: 7px; }
+  .steps-pop h4 .sub { margin-left: auto; color: var(--faint); font-weight: 500; font-size: 11.5px; }
+  .step-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; color: var(--muted); }
+  .step-row .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; border: 1.5px solid #d7dce8; display: grid; place-items: center; font-size: 9px; color: transparent; }
+  .step-row.done { color: #3d465c; }
+  .step-row.done .dot { background: var(--green); border-color: var(--green); color: #fff; }
+  .step-row.current { color: var(--text); font-weight: 600; }
+  .step-row.current .dot { border-color: var(--accent); border-top-color: transparent; animation: spin .7s linear infinite; }
+  .steps-pop .pop-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .mini-btn {
+    border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 4px 10px;
+    font-size: 12px; cursor: pointer; color: var(--muted);
+  }
+  .mini-btn:hover { border-color: var(--line-strong); color: var(--text); }
+  .mini-btn.danger { color: var(--red); border-color: #f0cdc9; }
+
+  /* marquee + hint + toast + demo pop */
+  .marquee { position: absolute; border: 1px solid var(--accent); background: rgba(63,110,242,.08); z-index: 15; pointer-events: none; }
+  .hint {
+    position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 12;
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+    background: rgba(255,255,255,.94); border: 1px solid var(--line); border-radius: 10px;
+    color: var(--muted); font-size: 12px; box-shadow: var(--shadow-soft); backdrop-filter: blur(4px);
+  }
+  .hint b { color: var(--text); font-weight: 600; }
+  .hint .hint-close { margin-left: auto; cursor: pointer; color: var(--faint); padding: 0 3px; }
+  .hint .hint-close:hover { color: var(--text); }
+
+  .toast-wrap { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+  .toast {
+    pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    background: #20242e; color: #f2f4fa; border-radius: 10px; box-shadow: var(--shadow); font-size: 12.6px;
+    animation: toast-in .18s ease-out;
+  }
+  .toast .toast-undo {
+    border: none; background: rgba(255,255,255,.14); color: #fff; border-radius: 7px;
+    padding: 3px 9px; font-size: 12.2px; cursor: pointer;
+  }
+  .toast .toast-undo:hover { background: rgba(255,255,255,.24); }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .demo-pop {
+    position: fixed; top: 52px; right: 14px; z-index: 210; width: 302px; padding: 12px;
+    background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+  }
+  .demo-pop h4 { margin: 0 0 4px; font-size: 12.8px; }
+  .demo-pop .note { color: var(--faint); font-size: 11.5px; margin-bottom: 8px; }
+  .demo-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12.6px; color: #3d465c; }
+  .demo-row .spacer { flex: 1; }
+  .switch { position: relative; width: 32px; height: 18px; flex: none; }
+  .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .switch i {
+    position: absolute; inset: 0; border-radius: 999px; background: #dfe4ef; transition: .15s;
+    pointer-events: none;
+  }
+  .switch i::after {
+    content: ""; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #fff;
+    top: 2px; left: 2px; transition: .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2);
+  }
+  .switch input:checked + i { background: var(--accent); }
+  .switch input:checked + i::after { transform: translateX(14px); }
+  .demo-actions { display: flex; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .demo-actions button { flex: 1; }
+
+  /* ---------- v3: AI 开关（画板头栏，本会话） ---------- */
+  .ai-switch {
+    display: flex; align-items: center; gap: 7px; border: 1px solid var(--line);
+    background: #fff; border-radius: 999px; padding: 3px 9px 3px 6px; cursor: pointer;
+    color: var(--muted); font-size: 12px; white-space: nowrap;
+  }
+  .ai-switch:hover { border-color: var(--line-strong); color: var(--text); }
+  .ai-switch .sw-track {
+    position: relative; width: 26px; height: 15px; border-radius: 999px; background: var(--accent);
+    transition: background .15s; flex: none;
+  }
+  .ai-switch .sw-track::after {
+    content: ""; position: absolute; top: 2px; left: 13px; width: 11px; height: 11px; border-radius: 50%;
+    background: #fff; transition: .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2);
+  }
+  .ai-switch .sw-text { color: #3d465c; font-weight: 600; }
+  .ai-switch .sw-state { color: var(--faint); font-size: 11.5px; }
+  .ai-switch.off { border-color: #e6d6d1; background: #fff7f5; }
+  .ai-switch.off .sw-track { background: #e2c9c2; }
+  .ai-switch.off .sw-track::after { left: 2px; }
+  .ai-switch.off .sw-state { color: var(--red); }
+
+  /* ---------- v3: 输入框引用（选区 → 对话） ---------- */
+  .composer-refs { display: flex; flex-direction: column; gap: 6px; }
+  .composer-refs:empty { display: none; }
+  .ref-ghost {
+    align-self: flex-start; display: inline-flex; align-items: center; gap: 7px;
+    border: 1px dashed #c3d0f8; background: var(--accent-weak); color: #2c4a9e;
+    border-radius: 9px; padding: 4px 9px; font-size: 12.3px; cursor: pointer;
+  }
+  .ref-ghost:hover { border-color: var(--accent); background: #e7edff; }
+  .ref-ghost .spark { font-size: 12px; }
+  .ref-chip {
+    align-self: flex-start; display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid #cfdcff; background: #f4f7ff; color: #253a72;
+    border-radius: 9px; padding: 4px 6px 4px 9px; font-size: 12.3px;
+  }
+  .ref-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+  .ref-chip .x {
+    border: none; background: transparent; color: var(--faint); cursor: pointer;
+    font-size: 13px; line-height: 1; padding: 2px 4px; border-radius: 5px;
+  }
+  .ref-chip .x:hover { background: #e4eaff; color: var(--text); }
+  .ref-chip.invalid { border-color: #f0cdc9; background: var(--red-weak); color: var(--red); }
+  .ref-chip.invalid .dot { background: var(--red); }
+  .ai-off-note {
+    align-self: stretch; display: flex; align-items: center; gap: 6px; font-size: 12px;
+    color: var(--muted); background: #f7f8fb; border: 1px dashed var(--line-strong);
+    border-radius: 8px; padding: 4px 9px;
+  }
+  .ai-off-note b { color: var(--red); font-weight: 600; }
+
+  /* ---------- v3: 临时会话浮窗 ---------- */
+  .temp-layer { position: absolute; inset: 0; z-index: 34; pointer-events: none; }
+  .temp-win {
+    position: absolute; width: 306px; max-width: calc(100% - 20px); pointer-events: auto;
+    background: #fff; border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .temp-head {
+    flex: none; display: flex; align-items: center; gap: 7px; padding: 8px 9px 8px 11px;
+    border-bottom: 1px solid var(--line); cursor: move; background: #fbfcfe;
+  }
+  .temp-glyph {
+    width: 19px; height: 19px; border-radius: 6px; display: grid; place-items: center; flex: none;
+    background: var(--accent-weak); color: var(--accent); font-size: 11px;
+  }
+  .temp-title { font-weight: 600; font-size: 12.5px; }
+  .temp-sub { font-size: 11.5px; color: var(--faint); }
+  .temp-badge { margin-left: auto; font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+  .temp-badge .micro-spin { width: 10px; height: 10px; border-width: 1.3px; }
+  .temp-close { border: none; background: transparent; color: var(--faint); cursor: pointer; font-size: 14px; line-height: 1; padding: 3px 4px; border-radius: 6px; }
+  .temp-close:hover { background: #eef1f7; color: var(--text); }
+  .temp-log {
+    max-height: 168px; overflow: auto; padding: 9px 10px 2px; display: flex; flex-direction: column; gap: 7px;
+    background: #fff;
+  }
+  .temp-turn { font-size: 12.3px; line-height: 1.5; }
+  .temp-turn.user { align-self: flex-end; max-width: 88%; background: var(--accent-weak); color: #17306b; border-radius: 9px 9px 3px 9px; padding: 5px 8px; }
+  .temp-turn.result { color: #2b3347; display: flex; gap: 6px; align-items: flex-start; }
+  .temp-turn.result .ok { color: var(--green); font-weight: 700; }
+  .temp-turn.result .wait { color: var(--faint); }
+  .temp-turn.result .bad { color: var(--red); font-weight: 700; }
+  .temp-win .temp-input-row { flex: none; display: flex; gap: 6px; padding: 8px 10px 9px; border-top: 1px solid var(--line); background: #fff; }
+  .temp-win textarea {
+    flex: 1; resize: none; min-height: 30px; max-height: 76px; padding: 6px 8px; font-size: 12.4px;
+    border: 1px solid var(--line); border-radius: 8px; background: #fbfcfe; outline: none;
+  }
+  .temp-win textarea:focus { border-color: #b9c8f5; background: #fff; box-shadow: 0 0 0 3px rgba(63,110,242,.10); }
+  .temp-win .temp-send {
+    flex: none; width: 30px; height: 30px; border-radius: 8px; border: none; background: var(--accent);
+    color: #fff; cursor: pointer; font-size: 14px;
+  }
+  .temp-win .temp-send[disabled] { background: #dfe4ef; color: #9aa3b8; cursor: default; }
+  .temp-win .temp-foot { font-size: 11.3px; color: var(--faint); padding: 0 10px 8px; }
+  .temp-win[data-state="closed"] { display: none; }
+
+  /* ---------- v3: 对话里的临时会话卡片（折叠记录） ---------- */
+  .temp-card {
+    align-self: stretch; border: 1px dashed #cfd7e6; border-radius: 11px; background: #fbfcfe;
+    padding: 9px 11px; display: flex; flex-direction: column; gap: 5px;
+  }
+  .temp-card[data-state="active"] { border-color: #cfdcff; background: #fbfcff; }
+  .temp-card[data-state="failed"] { border-color: #f3cdc8; background: var(--red-weak); }
+  .temp-card[data-state="promoted"] { border-color: #cfeadd; background: var(--green-weak); }
+  .temp-card-head { display: flex; align-items: center; gap: 7px; }
+  .temp-card-glyph {
+    width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; flex: none;
+    background: #eef1f7; color: #5b637a; font-size: 10.5px;
+  }
+  .temp-card-title { font-weight: 600; font-size: 12.5px; }
+  .temp-card-state { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+  .temp-card-prompt { font-size: 12.3px; color: #2b3347; }
+  .temp-card-meta { font-size: 11.5px; color: var(--muted); }
+  .temp-card-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .temp-log-list { display: flex; flex-direction: column; gap: 5px; padding: 6px 0 2px; border-top: 1px dashed var(--line); margin-top: 3px; }
+  .temp-log-list .row { font-size: 12.2px; color: #2b3347; }
+  .temp-log-list .row b { color: var(--muted); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◈</span>
+      <span>画板交互原型 <small>· 对话与画板并存</small></span>
+    </div>
+    <div class="session-title">
+      <span class="t">登录页草稿</span>
+      <span class="tag">同一会话</span>
+    </div>
+    <div class="top-actions">
+      <span class="proto-badge">交互原型</span>
+      <button class="ghost-btn" id="demoBtn">演示控制</button>
+    </div>
+  </header>
+
+  <main class="workspace" id="workspace">
+    <section class="conv">
+      <div class="conv-head">
+        <span class="title">对话</span>
+        <span class="sub">同一个会话 · 与画板并存</span>
+        <span class="spacer"></span>
+        <button class="chip-btn" id="openPanelBtn" hidden>打开画板</button>
+      </div>
+      <div class="conv-scroll" id="messages"></div>
+      <div class="composer" id="composer">
+        <div class="composer-refs" id="composerRefs"></div>
+        <div class="composer-row">
+          <textarea id="composerInput" rows="1" placeholder="发消息或追问…（引用选区后，这里就是画板命令框）"></textarea>
+          <button class="send-btn" id="sendBtn" title="发送" disabled>↑</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panelPane">
+      <div class="panel-head">
+        <span class="title">画板</span>
+        <span class="board-name">默认画板</span>
+        <span class="spacer"></span>
+        <button class="ai-switch" id="aiToggle" aria-pressed="true" title="本会话是否允许 AI 修改这块画板（画板 × 会话粒度）">
+          <span class="sw-track"></span>
+          <span class="sw-text">AI 修改</span>
+          <span class="sw-state" id="aiState">本会话 · 开</span>
+        </button>
+        <button class="icon-btn" id="closePanelBtn" title="关闭画板面板（对话继续可用）">×</button>
+      </div>
+      <div class="panel-tools">
+        <button class="tool-btn active" data-tool="select" title="选择 (V)">⌖</button>
+        <button class="tool-btn" data-tool="rect" title="矩形 (R)">▭</button>
+        <button class="tool-btn" data-tool="ellipse" title="椭圆 (O)">◯</button>
+        <button class="tool-btn" data-tool="arrow" title="箭头 (A)">↗</button>
+        <button class="tool-btn" data-tool="text" title="文字 (T)">T</button>
+        <span class="tool-sep"></span>
+        <span class="swatch" style="background:#1b2233" title="墨色"></span>
+        <span class="swatch" style="background:#3f6ef2" title="强调色"></span>
+        <span class="swatch" style="background:#d92d20" title="红色"></span>
+        <span class="swatch" style="background:#1f9d55" title="绿色"></span>
+        <span class="tool-sep"></span>
+        <button class="tool-btn" id="undoBtn" title="撤销 (Ctrl+Z)">↶</button>
+        <div class="tool-right">
+          <span class="zoom-pill">100%</span>
+          <button class="tool-btn" title="适配视图（演示占位）">⤢</button>
+        </div>
+      </div>
+
+      <div class="stage" id="stage">
+        <div class="shape-layer" id="shapeLayer"></div>
+        <div class="sel-layer" id="selLayer"></div>
+
+        <div class="selbar" id="selbar" hidden>
+          <button class="primary" id="selRefBtn" title="把选区引用到对话，然后在同一个输入框里下命令 (Ctrl+Enter)">引用到对话</button>
+          <span class="divider"></span>
+          <button id="selTempBtn" title="用临时会话快速改：多轮追问，不打断主对话">✨ 快速问</button>
+          <span class="divider"></span>
+          <button id="selDeleteBtn" title="删除选中对象 (Delete)">删除</button>
+        </div>
+
+        <div class="ai-chip" id="aiChip" hidden>
+          <span class="chip-main" id="chipMain" title="查看本轮步骤">
+            <span class="micro-spin"></span>
+            <span id="chipText">AI 正在处理</span>
+          </span>
+          <button class="stop" id="chipStop">停止</button>
+        </div>
+
+        <div class="steps-pop" id="stepsPop" hidden>
+          <h4>AI 正在处理 <span class="sub" id="stepsSub">读取选区 → 规划 → 应用</span></h4>
+          <div id="stepsList"></div>
+          <div class="pop-foot">
+            <button class="mini-btn danger" id="stepsStop">停止本轮</button>
+          </div>
+        </div>
+
+        <div class="temp-layer" id="tempLayer"></div>
+
+        <div class="marquee" id="marquee" hidden></div>
+
+        <div class="hint" id="hint">
+          <span>试试：<b>框选对象</b> → 在对话输入框点 <b>引用选区</b> → 输入「改成红色」→ <b>Enter</b>；或点选区上的 <b>✨ 快速问</b> 开临时会话</span>
+          <span class="hint-close" id="hintClose" title="关闭提示">×</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<div class="demo-pop" id="demoPop" hidden>
+  <h4>演示控制</h4>
+  <div class="note">这些开关只影响原型演示，不代表真实产品行为。</div>
+  <label class="demo-row">
+    <span>模拟下一轮失败</span>
+    <span class="spacer"></span>
+    <span class="switch"><input type="checkbox" id="demoFail"><i></i></span>
+  </label>
+  <label class="demo-row">
+    <span>慢速演示（约 5 秒）</span>
+    <span class="spacer"></span>
+    <span class="switch"><input type="checkbox" id="demoSlow"><i></i></span>
+  </label>
+  <div class="demo-actions">
+    <button class="mini-btn" id="demoStop">停止当前任务</button>
+    <button class="mini-btn" id="demoReset">重置原型</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ------------------------------------------------------------------ *
+   * 原型状态
+   * ------------------------------------------------------------------ */
+  const INITIAL_SHAPES = [
+    { id: "s1", type: "rect", x: 66, y: 96, w: 212, h: 132, stroke: "#1b2233", fill: "#ffffff", radius: 0, strokeWidth: 2 },
+    { id: "s2", type: "rect", x: 330, y: 96, w: 212, h: 132, stroke: "#d92d20", fill: "#ffffff", radius: 0, strokeWidth: 2, label: "你好世界" },
+    { id: "s3", type: "ellipse", x: 96, y: 292, w: 150, h: 112, stroke: "#1b2233", fill: "#ffffff", radius: 0, strokeWidth: 2 },
+    { id: "s4", type: "text", x: 318, y: 322, w: 240, h: 34, text: "这是一块共享画板", color: "#1b2233", fontSize: 17 }
+  ];
+
+  const state = {
+    shapes: clone(INITIAL_SHAPES),
+    selection: new Set(),
+    undoStack: [],
+    run: null,
+    locked: new Set(),
+    demo: { fail: false, slow: false },
+    aiEnabled: true,
+    ref: null,              // { ids: [] } 引用到对话的选区（一次性）
+    queue: [],              // 待执行的 AI 任务（串行）
+    tempSessions: [],       // 临时会话浮窗（最多 3 个）
+    panelClosed: false,
+    seq: 1
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const stage = $("stage");
+  const shapeLayer = $("shapeLayer");
+  const selLayer = $("selLayer");
+  const selbar = $("selbar");
+  const selRefBtn = $("selRefBtn");
+  const selTempBtn = $("selTempBtn");
+  const aiToggle = $("aiToggle");
+  const composerRefs = $("composerRefs");
+  const tempLayer = $("tempLayer");
+  const aiChip = $("aiChip");
+  const chipText = $("chipText");
+  const stepsPop = $("stepsPop");
+  const stepsList = $("stepsList");
+  const marquee = $("marquee");
+  const messages = $("messages");
+  const toastWrap = $("toastWrap");
+  const workspace = $("workspace");
+  const panelPane = $("panelPane");
+  const demoPop = $("demoPop");
+  const composerInput = $("composerInput");
+  const sendBtn = $("sendBtn");
+  const openPanelBtn = $("openPanelBtn");
+
+  let shapeEls = new Map();
+  let drag = null;
+
+  function clone(value) { return JSON.parse(JSON.stringify(value)); }
+  function uid(prefix) { return prefix + "-" + (state.seq++); }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function stageSize() { return { w: stage.clientWidth, h: stage.clientHeight }; }
+
+  /* ------------------------------------------------------------------ *
+   * 画布渲染
+   * ------------------------------------------------------------------ */
+  function renderShapes() {
+    shapeLayer.innerHTML = "";
+    shapeEls = new Map();
+    for (const shape of state.shapes) {
+      const el = document.createElement("div");
+      el.className = "shape " + shape.type;
+      el.dataset.id = shape.id;
+      el.style.left = shape.x + "px";
+      el.style.top = shape.y + "px";
+      el.style.width = shape.w + "px";
+      el.style.height = shape.h + "px";
+      if (shape.type === "text") {
+        el.style.color = shape.color || "#1b2233";
+        el.style.fontSize = (shape.fontSize || 17) + "px";
+        el.textContent = shape.text || "";
+      } else {
+        el.style.border = shape.strokeWidth + "px solid " + shape.stroke;
+        el.style.background = shape.fill || "#fff";
+        el.style.borderRadius = (shape.type === "ellipse" ? "50%" : (shape.radius || 0) + "px");
+        if (shape.label) {
+          const label = document.createElement("div");
+          label.className = "label";
+          label.textContent = shape.label;
+          el.appendChild(label);
+        }
+      }
+      if (state.locked.has(shape.id)) el.classList.add("locked");
+      el.addEventListener("pointerdown", (event) => onShapePointerDown(event, shape.id));
+      shapeLayer.appendChild(el);
+      shapeEls.set(shape.id, el);
+    }
+  }
+
+  function refreshShapeEl(shape) {
+    const el = shapeEls.get(shape.id);
+    if (!el) return;
+    el.style.left = shape.x + "px";
+    el.style.top = shape.y + "px";
+    if (shape.type === "text") {
+      el.style.width = shape.w + "px";
+      el.style.height = shape.h + "px";
+    }
+  }
+
+  function renderSelection() {
+    selLayer.innerHTML = "";
+    selRefBtn.hidden = !state.aiEnabled;
+    selTempBtn.hidden = !state.aiEnabled;
+    if (state.selection.size === 0) { hideSelbar(); syncRefToSelection(); return; }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const shape of state.shapes) {
+      if (!state.selection.has(shape.id)) continue;
+      const outline = document.createElement("div");
+      outline.className = "sel-outline";
+      outline.style.left = (shape.x - 3) + "px";
+      outline.style.top = (shape.y - 3) + "px";
+      outline.style.width = (shape.w + 6) + "px";
+      outline.style.height = (shape.h + 6) + "px";
+      selLayer.appendChild(outline);
+      minX = Math.min(minX, shape.x); minY = Math.min(minY, shape.y);
+      maxX = Math.max(maxX, shape.x + shape.w); maxY = Math.max(maxY, shape.y + shape.h);
+    }
+    for (const [hx, hy] of [[minX, minY], [maxX, minY], [minX, maxY], [maxX, maxY]]) {
+      const handle = document.createElement("div");
+      handle.className = "sel-handle";
+      handle.style.left = (hx - 4) + "px";
+      handle.style.top = (hy - 4) + "px";
+      selLayer.appendChild(handle);
+    }
+    positionSelbar({ x: minX, y: minY, w: maxX - minX, h: maxY - minY });
+    syncRefToSelection();
+  }
+
+  function bboxOf(ids) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const shape of state.shapes) {
+      if (!ids.has(shape.id)) continue;
+      minX = Math.min(minX, shape.x); minY = Math.min(minY, shape.y);
+      maxX = Math.max(maxX, shape.x + shape.w); maxY = Math.max(maxY, shape.y + shape.h);
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  function positionSelbar(bbox) {
+    if (state.run) { selbar.hidden = true; return; }
+    const { w, h } = stageSize();
+    const bw = selbar.offsetWidth || 180;
+    const bh = selbar.offsetHeight || 34;
+    const left = clamp(bbox.x + bbox.w / 2 - bw / 2, 8, Math.max(8, w - bw - 8));
+    let top = bbox.y - bh - 12;
+    if (top < 8) top = Math.min(h - bh - 8, bbox.y + bbox.h + 12);
+    selbar.style.left = left + "px";
+    selbar.style.top = top + "px";
+    selbar.hidden = false;
+  }
+
+  function hideSelbar() { selbar.hidden = true; }
+
+  /* ------------------------------------------------------------------ *
+   * 选区与拖拽
+   * ------------------------------------------------------------------ */
+  function setSelection(ids) {
+    state.selection = new Set(ids);
+    renderSelection();
+  }
+
+  function onShapePointerDown(event, id) {
+    if (event.button !== 0) return;
+    if (state.locked.has(id)) {
+      toast("AI 正在处理这个对象，稍等一下");
+      event.stopPropagation();
+      return;
+    }
+    event.stopPropagation();
+    const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+    if (additive) {
+      if (state.selection.has(id)) state.selection.delete(id);
+      else state.selection.add(id);
+      renderSelection();
+      return;
+    }
+    if (!state.selection.has(id)) setSelection([id]);
+    else renderSelection();
+
+    const start = { x: event.clientX, y: event.clientY };
+    const ids = [...state.selection];
+    const origins = state.shapes.filter((s) => ids.includes(s.id)).map((s) => ({ id: s.id, x: s.x, y: s.y }));
+    drag = { mode: "move", start, ids, origins, moved: false };
+    stage.setPointerCapture(event.pointerId);
+  }
+
+  function onStagePointerDown(event) {
+    if (event.button !== 0) return;
+    if (event.target.closest(".selbar, .ai-chip, .steps-pop, .hint, .temp-win")) return;
+    const rect = stage.getBoundingClientRect();
+    const origin = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    marquee.hidden = false;
+    marquee.style.left = origin.x + "px";
+    marquee.style.top = origin.y + "px";
+    marquee.style.width = "0px";
+    marquee.style.height = "0px";
+    drag = { mode: "marquee", origin, additive: event.shiftKey, startX: event.clientX, startY: event.clientY };
+    stage.setPointerCapture(event.pointerId);
+  }
+
+  stage.addEventListener("pointerdown", onStagePointerDown);
+  stage.addEventListener("pointermove", (event) => {
+    if (!drag) return;
+    const rect = stage.getBoundingClientRect();
+    if (drag.mode === "move") {
+      const dx = event.clientX - drag.start.x;
+      const dy = event.clientY - drag.start.y;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
+      for (const origin of drag.origins) {
+        const shape = state.shapes.find((s) => s.id === origin.id);
+        if (!shape) continue;
+        shape.x = origin.x + dx;
+        shape.y = origin.y + dy;
+        refreshShapeEl(shape);
+      }
+      if (state.selection.size > 0) {
+        const ids = new Set(drag.ids);
+        const bbox = bboxOf(ids);
+        renderSelectionOutlinesOnly(bbox, ids);
+      }
+      return;
+    }
+    if (drag.mode === "marquee") {
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const left = Math.min(drag.origin.x, x);
+      const top = Math.min(drag.origin.y, y);
+      marquee.style.left = left + "px";
+      marquee.style.top = top + "px";
+      marquee.style.width = Math.abs(x - drag.origin.x) + "px";
+      marquee.style.height = Math.abs(y - drag.origin.y) + "px";
+      drag.rect = { x: left, y: top, w: Math.abs(x - drag.origin.x), h: Math.abs(y - drag.origin.y) };
+    }
+  });
+  stage.addEventListener("pointerup", (event) => {
+    if (!drag) return;
+    const current = drag;
+    drag = null;
+    marquee.hidden = true;
+    if (current.mode === "move") {
+      if (current.moved) {
+        // 记录拖拽前的坐标用于撤销
+        state.undoStack.push({ kind: "move", snapshot: snapshotBeforeMove(current.origins) });
+      }
+      renderSelection();
+      return;
+    }
+    if (current.mode === "marquee") {
+      const r = current.rect;
+      if (!r || (r.w < 4 && r.h < 4)) {
+        setSelection([]);
+        return;
+      }
+      const hits = state.shapes.filter((s) => intersects(r, { x: s.x, y: s.y, w: s.w, h: s.h })).map((s) => s.id);
+      if (current.additive) for (const id of hits) state.selection.add(id);
+      else setSelection(hits);
+    }
+  });
+  stage.addEventListener("pointercancel", () => { drag = null; marquee.hidden = true; });
+
+  function intersects(a, b) {
+    return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
+  }
+  function snapshotShapes() { return clone(state.shapes); }
+  function snapshotBeforeMove(origins) {
+    const snapshot = clone(state.shapes);
+    for (const item of snapshot) {
+      const origin = origins.find((o) => o.id === item.id);
+      if (origin) { item.x = origin.x; item.y = origin.y; }
+    }
+    return snapshot;
+  }
+
+  function renderSelectionOutlinesOnly(bbox, ids) {
+    selLayer.innerHTML = "";
+    for (const shape of state.shapes) {
+      if (!ids.has(shape.id)) continue;
+      const outline = document.createElement("div");
+      outline.className = "sel-outline";
+      outline.style.left = (shape.x - 3) + "px";
+      outline.style.top = (shape.y - 3) + "px";
+      outline.style.width = (shape.w + 6) + "px";
+      outline.style.height = (shape.h + 6) + "px";
+      selLayer.appendChild(outline);
+    }
+    positionSelbar(bbox);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * v3-1 引用：选区 → 对话输入框
+   * ------------------------------------------------------------------ */
+  function attachRef() {
+    if (!state.aiEnabled) { toast("本会话已关闭画板 AI 修改"); return; }
+    if (state.selection.size === 0) { toast("先在画板上选中对象"); return; }
+    state.ref = { ids: [...state.selection] };
+    renderRefs();
+    composerInput.focus();
+    toast("已引用 " + state.selection.size + " 个对象 · 在输入框里说怎么改", null, 2800);
+  }
+
+  function clearRef() {
+    state.ref = null;
+    renderRefs();
+  }
+
+  function renderRefs() {
+    composerRefs.innerHTML = "";
+    if (!state.aiEnabled) {
+      const note = document.createElement("div");
+      note.className = "ai-off-note";
+      note.innerHTML = "<b>AI 修改已关闭</b>（本会话）· 在画板头栏重新打开";
+      composerRefs.appendChild(note);
+      return;
+    }
+    if (state.ref) {
+      state.ref.ids = state.ref.ids.filter((id) => state.shapes.some((s) => s.id === id));
+      const chip = document.createElement("div");
+      chip.className = "ref-chip" + (state.ref.ids.length ? "" : " invalid");
+      chip.title = "这一段引用只用于下一条消息";
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      chip.appendChild(dot);
+      const label = document.createElement("span");
+      label.textContent = state.ref.ids.length
+        ? "画板选区 · " + state.ref.ids.length + " 个对象"
+        : "引用已失效（对象已被删除）";
+      chip.appendChild(label);
+      const remove = document.createElement("button");
+      remove.className = "x";
+      remove.textContent = "×";
+      remove.title = "取消引用";
+      remove.addEventListener("click", () => { clearRef(); composerInput.focus(); });
+      chip.appendChild(remove);
+      composerRefs.appendChild(chip);
+      return;
+    }
+    if (state.selection.size > 0 && !state.run) {
+      const ghost = document.createElement("button");
+      ghost.className = "ref-ghost";
+      ghost.type = "button";
+      ghost.innerHTML = '<span class="spark">✦</span> 引用选区（' + state.selection.size + " 个对象）到对话";
+      ghost.title = "把选区挂到下面的输入框，然后在同一个对话框里下命令";
+      ghost.addEventListener("click", attachRef);
+      composerRefs.appendChild(ghost);
+    }
+  }
+
+  function syncRefToSelection() {
+    if (!state.ref) { renderRefs(); return; }
+    const ids = [...state.selection].filter((id) => state.shapes.some((s) => s.id === id));
+    if (ids.length === 0) { state.ref = null; renderRefs(); return; }
+    state.ref.ids = ids;
+    renderRefs();
+  }
+
+  selRefBtn.addEventListener("click", attachRef);
+  selTempBtn.addEventListener("click", () => openTempSession([...state.selection]));
+  $("selDeleteBtn").addEventListener("click", deleteSelection);
+
+  /* ------------------------------------------------------------------ *
+   * v3-2 临时会话（btw）：浮窗、多轮、可同时开多个、串行排队
+   * ------------------------------------------------------------------ */
+  const MAX_TEMP = 3;
+  let tempZ = 50;
+
+  function openTempSession(ids) {
+    if (!state.aiEnabled) { toast("本会话已关闭画板 AI 修改"); return; }
+    if (!ids || ids.length === 0) { toast("先选中对象，再开临时会话"); return; }
+    if (state.tempSessions.length >= MAX_TEMP) {
+      toast("最多同时开 " + MAX_TEMP + " 个临时会话，先关掉一个");
+      return;
+    }
+    const session = { id: uid("tmp"), ids: [...ids], turns: [], el: null, card: null, moved: false };
+    state.tempSessions.push(session);
+    buildTempWindow(session);
+    session.card = appendTempCard(session);
+    renderRefs();
+    scrollToBottom();
+    window.requestAnimationFrame(() => {
+      positionTempWindows(false);
+      const input = session.el.querySelector('[data-role="input"]');
+      if (input) input.focus();
+    });
+  }
+
+  function buildTempWindow(session) {
+    const el = document.createElement("div");
+    el.className = "temp-win";
+    el.dataset.id = session.id;
+    el.innerHTML =
+      '<div class="temp-head" data-role="head">' +
+        '<span class="temp-glyph">◈</span>' +
+        '<span class="temp-title">临时会话</span>' +
+        '<span class="temp-sub">' + session.ids.length + ' 个对象</span>' +
+        '<span class="temp-badge" data-role="badge"></span>' +
+        '<button class="temp-close" data-role="close" title="关闭（关闭即丢弃，只在对话里留折叠记录）">×</button>' +
+      '</div>' +
+      '<div class="temp-log" data-role="log"></div>' +
+      '<div class="temp-input-row">' +
+        '<textarea data-role="input" rows="1" placeholder="对这几个对象说一句…（Enter 发送）"></textarea>' +
+        '<button class="temp-send" data-role="send" disabled>↑</button>' +
+      '</div>' +
+      '<div class="temp-foot">只作用于这 ' + session.ids.length + ' 个对象 · 关闭即丢弃 · 可连续追问</div>';
+    tempLayer.appendChild(el);
+    session.el = el;
+    el.style.zIndex = String(++tempZ);
+    el.addEventListener("pointerdown", () => { el.style.zIndex = String(++tempZ); });
+
+    el.querySelector('[data-role="close"]').addEventListener("click", () => closeTempSession(session));
+    const input = el.querySelector('[data-role="input"]');
+    const send = el.querySelector('[data-role="send"]');
+    input.addEventListener("input", () => { send.disabled = input.value.trim().length === 0 || !state.aiEnabled; });
+    input.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendTemp(session); }
+      if (event.key === "Escape") { event.preventDefault(); closeTempSession(session); }
+    });
+    send.addEventListener("click", () => sendTemp(session));
+
+    // 拖动浮窗标题栏
+    const head = el.querySelector('[data-role="head"]');
+    head.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || event.target.closest('[data-role="close"]')) return;
+      event.stopPropagation();
+      const start = { x: event.clientX, y: event.clientY };
+      const origin = { left: el.offsetLeft, top: el.offsetTop };
+      const move = (ev) => {
+        const dx = ev.clientX - start.x;
+        const dy = ev.clientY - start.y;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) session.moved = true;
+        el.style.left = clamp(origin.left + dx, 4, stage.clientWidth - el.offsetWidth - 4) + "px";
+        el.style.top = clamp(origin.top + dy, 4, stage.clientHeight - 60) + "px";
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    });
+    renderTempWindow(session);
+  }
+
+  function renderTempWindow(session) {
+    if (!session.el) return;
+    const log = session.el.querySelector('[data-role="log"]');
+    log.innerHTML = "";
+    if (session.turns.length === 0) {
+      const intro = document.createElement("div");
+      intro.className = "temp-turn result";
+      intro.innerHTML = '<span class="wait">像聊天一样说一句，结果直接落在画板上；不喜欢就点对话里的撤销。</span>';
+      log.appendChild(intro);
+    }
+    for (const turn of session.turns) {
+      const q = document.createElement("div");
+      q.className = "temp-turn user";
+      q.textContent = turn.prompt;
+      log.appendChild(q);
+      const r = document.createElement("div");
+      r.className = "temp-turn result";
+      const icon = document.createElement("span");
+      if (turn.state === "applied") { icon.className = "ok"; icon.textContent = "✓"; }
+      else if (turn.state === "failed") { icon.className = "bad"; icon.textContent = "!"; }
+      else if (turn.state === "stopped") { icon.className = "wait"; icon.textContent = "—"; }
+      else { icon.className = "wait"; icon.textContent = "·"; }
+      const text = document.createElement("span");
+      if (turn.state === "applied") text.textContent = "已应用 · " + (turn.label || "");
+      else if (turn.state === "failed") text.textContent = "未应用 · 模型调用失败";
+      else if (turn.state === "stopped") text.textContent = "已停止 · 未应用";
+      else if (turn.state === "undone") text.textContent = "已撤销 · 未应用";
+      else if (turn.state === "running") text.textContent = "正在处理…";
+      else text.textContent = "排队中…";
+      r.appendChild(icon);
+      r.appendChild(text);
+      log.appendChild(r);
+    }
+    log.scrollTop = log.scrollHeight;
+    const badge = session.el.querySelector('[data-role="badge"]');
+    badge.innerHTML = "";
+    const queued = state.queue.some((task) => task.session === session);
+    const running = state.run && state.run.session === session;
+    if (!state.aiEnabled) badge.textContent = "AI 已关闭";
+    else if (running) {
+      const spin = document.createElement("span");
+      spin.className = "micro-spin";
+      badge.appendChild(spin);
+      badge.appendChild(document.createTextNode("处理中"));
+    } else if (queued) badge.textContent = "排队中";
+    else if (session.turns.length) badge.textContent = session.turns.length + " 轮";
+    const input = session.el.querySelector('[data-role="input"]');
+    const send = session.el.querySelector('[data-role="send"]');
+    input.disabled = !state.aiEnabled;
+    send.disabled = !state.aiEnabled || input.value.trim().length === 0;
+    positionTempWindows(false);
+  }
+
+  function positionTempWindows(force) {
+    const { w, h } = stageSize();
+    state.tempSessions.forEach((session, index) => {
+      if (!session.el) return;
+      if (session.moved && !force) return;
+      const width = session.el.offsetWidth || 306;
+      const height = session.el.offsetHeight || 210;
+      session.el.style.left = clamp(12 + index * 38, 6, Math.max(6, w - width - 6)) + "px";
+      session.el.style.top = clamp(h - height - 54 - index * 34, 6, Math.max(6, h - height - 6)) + "px";
+    });
+  }
+
+  function sendTemp(session) {
+    if (!state.aiEnabled) { toast("本会话已关闭画板 AI 修改"); return; }
+    const input = session.el.querySelector('[data-role="input"]');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    const turn = { prompt: text, state: "queued" };
+    session.turns.push(turn);
+    renderTempWindow(session);
+    renderTempCard(session);
+    requestRun({ channel: "temp", session, turn, ids: session.ids.slice(), prompt: text });
+  }
+
+  function closeTempSession(session) {
+    const index = state.tempSessions.indexOf(session);
+    if (index >= 0) state.tempSessions.splice(index, 1);
+    if (session.el) session.el.remove();
+    session.el = null;
+    if (session.card) {
+      session.card.dataset.state = "closed";
+      const stateEl = session.card.querySelector(".temp-card-state");
+      if (stateEl) stateEl.textContent = "浮窗已关闭";
+      const meta = session.card.querySelector(".temp-card-meta");
+      if (meta) meta.textContent = "关闭即丢弃 · 记录仅留在对话里";
+    }
+    renderRefs();
+    positionTempWindows(false);
+  }
+
+  function appendTempCard(session) {
+    const card = document.createElement("div");
+    card.className = "temp-card";
+    card.dataset.state = "active";
+    card.innerHTML =
+      '<div class="temp-card-head">' +
+        '<span class="temp-card-glyph">◈</span>' +
+        '<span class="temp-card-title">临时会话 · ' + session.ids.length + ' 个对象</span>' +
+        '<span class="temp-card-state">进行中</span>' +
+      '</div>' +
+      '<div class="temp-card-prompt"></div>' +
+      '<div class="temp-card-meta">只作用于本选区 · 不进入主对话的指令流</div>' +
+      '<div class="temp-card-actions">' +
+        '<button class="link-btn muted" data-act="expand">展开记录</button>' +
+        '<button class="link-btn" data-act="promote">在对话中继续</button>' +
+        '<button class="link-btn muted" data-act="focus">在画板中查看</button>' +
+      '</div>' +
+      '<div class="temp-log-list" data-role="body" hidden></div>';
+    card.querySelector(".temp-card-prompt").textContent = "打开临时会话 · 等第一条指令";
+    card.querySelector('[data-act="expand"]').addEventListener("click", () => {
+      const body = card.querySelector('[data-role="body"]');
+      body.hidden = !body.hidden;
+      card.querySelector('[data-act="expand"]').textContent = body.hidden ? "展开记录" : "收起记录";
+    });
+    card.querySelector('[data-act="promote"]').addEventListener("click", () => promoteTempSession(session));
+    card.querySelector('[data-act="focus"]').addEventListener("click", () => focusPanel(session.ids));
+    messages.appendChild(card);
+    return card;
+  }
+
+  function renderTempCard(session) {
+    const card = session.card;
+    if (!card) return;
+    if (session.turns.length) {
+      card.querySelector(".temp-card-prompt").textContent = "“" + session.turns[session.turns.length - 1].prompt + "”";
+    }
+    const applied = session.turns.filter((turn) => turn.state === "applied").length;
+    const meta = card.querySelector(".temp-card-meta");
+    if (meta) meta.textContent = session.turns.length + " 轮 · 已应用 " + applied + " 次 · 只作用于本选区";
+    const stateEl = card.querySelector(".temp-card-state");
+    if (stateEl) stateEl.textContent = session.el ? "进行中" : "浮窗已关闭";
+    card.dataset.state = card.dataset.state === "promoted" ? "promoted" : (session.el ? "active" : "closed");
+    const body = card.querySelector('[data-role="body"]');
+    body.innerHTML = "";
+    for (const turn of session.turns) {
+      const row = document.createElement("div");
+      row.className = "row";
+      const label = turn.state === "applied" ? "已应用 · " + (turn.label || "")
+        : turn.state === "failed" ? "未应用 · 模型调用失败"
+        : turn.state === "stopped" ? "已停止 · 未应用"
+        : turn.state === "undone" ? "已撤销 · 未应用" : "排队中…";
+      row.innerHTML = '<b>你：</b>' + escapeHtml(turn.prompt) + '<br><b>AI：</b>' + escapeHtml(label);
+      body.appendChild(row);
+    }
+  }
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+  }
+
+  function promoteTempSession(session) {
+    const alive = session.ids.filter((id) => state.shapes.some((s) => s.id === id));
+    if (alive.length === 0) { toast("这些对象已经不在了，没法继续引用"); return; }
+    if (!state.aiEnabled) { toast("本会话已关闭画板 AI 修改"); return; }
+    closeTempSession(session);
+    state.selection = new Set(alive);
+    state.ref = { ids: alive.slice() };
+    renderSelection();
+    renderRefs();
+    if (session.card) {
+      session.card.dataset.state = "promoted";
+      const stateEl = session.card.querySelector(".temp-card-state");
+      if (stateEl) stateEl.textContent = "已转入对话";
+      const meta = session.card.querySelector(".temp-card-meta");
+      if (meta) meta.textContent = "选区已引用到输入框 · 接着补充就行";
+      const promote = session.card.querySelector('[data-act="promote"]');
+      if (promote) promote.hidden = true;
+    }
+    composerInput.focus();
+    toast("已把选区引用到对话，接着补充就行", null, 3400);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * AI 运行模拟（读取选区 → 规划 → 应用）
+   * ------------------------------------------------------------------ */
+  function planFor(prompt, ids) {
+    const t = String(prompt || "").toLowerCase();
+    const isText = state.shapes.find((s) => ids.includes(s.id) && s.type === "text");
+    if (/红|red/.test(t)) return { kind: "color", color: "#d92d20", label: "描边改为红色 #d92d20", verb: "把颜色改成了红色" };
+    if (/蓝|blue/.test(t)) return { kind: "color", color: "#3f6ef2", label: "描边改为蓝色 #3f6ef2", verb: "把颜色改成了蓝色" };
+    if (/绿|green/.test(t)) return { kind: "color", color: "#1f9d55", label: "描边改为绿色 #1f9d55", verb: "把颜色改成了绿色" };
+    if (/圆角|rounded/.test(t)) return { kind: "radius", radius: 16, label: "圆角改为 16px", verb: "给它们加了圆角" };
+    if (/粗|加粗|stroke/.test(t)) return { kind: "stroke", width: 4, label: "描边加粗到 4px", verb: "把描边加粗了" };
+    if (/放大|大一点|scale/.test(t)) return { kind: "scale", factor: 1.15, label: "整体放大 15%", verb: "把它们放大了一点" };
+    if (/标题|文字|写|text|label/.test(t)) return { kind: "text", label: "新增一段文字", verb: "加了一段文字" };
+    if (isText) return { kind: "color", color: "#3f6ef2", label: "文字颜色改为蓝色 #3f6ef2", verb: "把文字改成了蓝色" };
+    return { kind: "color", color: "#3f6ef2", label: "改为强调色 #3f6ef2", verb: "改了颜色" };
+  }
+
+  /* ------------------------------------------------------------------ *
+   * AI 运行模拟（队列：主对话命令 & 临时会话共用，串行）
+   * ------------------------------------------------------------------ */
+  function requestRun(task) {
+    if (!state.aiEnabled) { toast("本会话已关闭画板 AI 修改"); return; }
+    if (task.channel === "temp" && !task.session.el) return;
+    state.queue.push(task);
+    if (task.channel === "temp" && task.turn) task.turn.state = "queued";
+    if (task.channel === "chat" && task.card) {
+      task.card.dataset.state = "running";
+      setCardState(task.card, "running");
+      const meta = task.card.querySelector(".ops-meta");
+      if (meta) meta.textContent = "排队中 · 前面还有 " + state.queue.length + " 轮";
+    }
+    for (const session of state.tempSessions) renderTempWindow(session);
+    pumpQueue();
+  }
+
+  function pumpQueue() {
+    if (state.run || state.queue.length === 0) return;
+    runNow(state.queue.shift());
+  }
+
+  function runNow(task) {
+    const ids = task.ids;
+    const prompt = task.prompt;
+    const plan = planFor(prompt, ids);
+    const card = task.card || null;
+    const run = {
+      ids, prompt, plan, card,
+      channel: task.channel,
+      temp: task.session || null,
+      turn: task.turn || null,
+      cancelled: false,
+      retry: !!task.retry,
+      timers: [],
+      steps: [
+        { label: "读取选区（" + ids.length + " 个对象）", state: "current" },
+        { label: "规划修改", state: "pending" },
+        { label: "应用修改", state: "pending" }
+      ]
+    };
+    state.run = run;
+    state.locked = new Set(ids);
+    state.selection = new Set(ids);
+    renderSelection();
+    renderShapes();
+    hideSelbar();
+    showChip(ids);
+    renderSteps();
+    stepsPop.hidden = false;
+    positionChipAndSteps();
+    if (task.channel === "temp") {
+      if (run.turn) run.turn.state = "running";
+      renderTempWindow(run.temp);
+      renderTempCard(run.temp);
+    } else if (card) {
+      card.dataset.state = "running";
+      setCardState(card, "running");
+      const meta = card.querySelector(".ops-meta");
+      if (meta) meta.textContent = "读取选区 → 规划修改 → 应用";
+      scrollToBottom();
+    }
+    for (const session of state.tempSessions) renderTempWindow(session);
+
+    const slow = state.demo.slow ? 2.2 : 1;
+    run.timers.push(window.setTimeout(() => advanceStep(run, 1), 650 * slow));
+    run.timers.push(window.setTimeout(() => advanceStep(run, 2), 1350 * slow));
+    run.timers.push(window.setTimeout(() => finishRun(run), 2350 * slow));
+  }
+
+  function advanceStep(run, index) {
+    if (state.run !== run || run.cancelled) return;
+    run.steps[index - 1].state = "done";
+    if (index < run.steps.length) run.steps[index].state = "current";
+    renderSteps();
+    if (index === 2) {
+      const meta = run.card ? run.card.querySelector(".ops-meta") : null;
+      if (meta) meta.textContent = "正在应用修改…";
+    }
+  }
+
+  function finishRun(run) {
+    if (state.run !== run || run.cancelled) return;
+    state.run = null;
+    hideChip();
+    stepsPop.hidden = true;
+    state.locked = new Set();
+    if (state.demo.fail && !run.retry) {
+      failRun(run);
+      return;
+    }
+    const snapshot = snapshotShapes();
+    const changed = applyPlan(run.plan, run.ids);
+    const entry = {
+      kind: "ai", snapshot, ids: run.ids, label: run.plan.label,
+      card: run.card || (run.temp ? run.temp.card : null),
+      temp: run.temp || null,
+      tempTurn: run.turn || null
+    };
+    state.undoStack.push(entry);
+    renderShapes();
+    flashIds(changed.ids);
+    selectAffected(run.ids);
+    if (run.channel === "temp") {
+      if (run.turn) { run.turn.state = "applied"; run.turn.label = run.plan.label; }
+      renderTempWindow(run.temp);
+      renderTempCard(run.temp);
+      if (run.temp && run.temp.el) {
+        const log = run.temp.el.querySelector('[data-role="log"]');
+        if (log) log.scrollTop = log.scrollHeight;
+      }
+      toast("临时会话已应用 · " + run.plan.label, () => undoEntry(entry.card), 6000);
+    } else {
+      const card = run.card;
+      card.dataset.state = "applied";
+      setCardState(card, "applied");
+      const meta = card.querySelector(".ops-meta");
+      if (meta) meta.textContent = "已应用 · " + run.plan.label;
+      setCardActions(card, [
+        { label: "再改一次", onClick: () => { setSelection(run.ids); attachRef(); } },
+        { label: "在画板中查看", onClick: () => focusPanel(run.ids) }
+      ]);
+      toast("已应用 " + run.ids.length + " 个对象 · " + run.plan.label, () => undoEntry(card), 6000);
+      appendAiMessage("已" + run.plan.verb + "。其它属性和位置没动，需要的话可以继续框选它们再说一句。");
+    }
+    pumpQueue();
+  }
+
+  function setCardActions(card, actions) {
+    const row = card.querySelector(".ops-actions");
+    if (!row) return;
+    row.innerHTML = "";
+    for (const action of actions) {
+      const btn = document.createElement("button");
+      btn.className = "link-btn";
+      btn.textContent = action.label;
+      btn.addEventListener("click", action.onClick);
+      row.appendChild(btn);
+    }
+  }
+
+  function failRun(run) {
+    if (run.channel === "temp") {
+      if (run.turn) run.turn.state = "failed";
+      renderTempWindow(run.temp);
+      if (run.temp && run.temp.card) {
+        run.temp.card.dataset.state = "failed";
+        const stateEl = run.temp.card.querySelector(".temp-card-state");
+        if (stateEl) stateEl.textContent = "未应用";
+        const actions = run.temp.card.querySelector(".temp-card-actions");
+        if (actions && !actions.querySelector('[data-act="retry"]')) {
+          const retry = document.createElement("button");
+          retry.className = "link-btn";
+          retry.dataset.act = "retry";
+          retry.textContent = "重试";
+          retry.addEventListener("click", () => {
+            retry.remove();
+            run.temp.card.dataset.state = "active";
+            const text = run.prompt;
+            const turn = { prompt: text, state: "queued" };
+            run.temp.turns.push(turn);
+            renderTempWindow(run.temp);
+            renderTempCard(run.temp);
+            requestRun({ channel: "temp", session: run.temp, turn, ids: run.temp.ids.slice(), prompt: text, retry: true });
+          });
+          actions.appendChild(retry);
+        }
+      }
+      toast("本轮未应用：模型调用失败（演示用）", null, 5000);
+    } else {
+      run.card.dataset.state = "failed";
+      setCardState(run.card, "failed");
+      setCardActions(run.card, [
+        {
+          label: "重试", onClick: () => {
+            run.card.dataset.state = "running";
+            setCardState(run.card, "running");
+            requestRun({ channel: "chat", ids: run.ids, prompt: run.prompt, card: run.card, retry: true });
+          }
+        },
+        { label: "在画板中查看", onClick: () => focusPanel(run.ids) }
+      ]);
+      const meta = run.card.querySelector(".ops-meta");
+      if (meta) meta.textContent = "未应用 · 原因：模型调用失败（原型模拟）";
+      renderShapes();
+      toast("本轮未应用：模型调用失败（演示用）", null, 5000);
+    }
+    pumpQueue();
+  }
+
+  function applyPlan(plan, ids) {
+    const changed = new Set();
+    if (plan.kind === "text") {
+      const bbox = bboxOf(new Set(ids));
+      state.shapes.push({
+        id: uid("t"), type: "text", x: bbox.x, y: bbox.y + bbox.h + 18,
+        w: 240, h: 32, text: "新的标题", color: "#1b2233", fontSize: 18
+      });
+      return { ids: [state.shapes[state.shapes.length - 1].id] };
+    }
+    for (const shape of state.shapes) {
+      if (!ids.includes(shape.id)) continue;
+      changed.add(shape.id);
+      if (plan.kind === "color") {
+        if (shape.type === "text") shape.color = plan.color;
+        else shape.stroke = plan.color;
+      } else if (plan.kind === "radius") {
+        if (shape.type === "rect") shape.radius = plan.radius;
+      } else if (plan.kind === "stroke") {
+        if (shape.type !== "text") shape.strokeWidth = plan.width;
+      } else if (plan.kind === "scale") {
+        const cx = shape.x + shape.w / 2, cy = shape.y + shape.h / 2;
+        shape.w = Math.round(shape.w * plan.factor);
+        shape.h = Math.round(shape.h * plan.factor);
+        shape.x = Math.round(cx - shape.w / 2);
+        shape.y = Math.round(cy - shape.h / 2);
+      }
+    }
+    return { ids: [...changed] };
+  }
+
+  function flashIds(ids) {
+    for (const id of ids) {
+      const el = shapeEls.get(id);
+      if (!el) continue;
+      el.classList.remove("flash");
+      void el.offsetWidth;
+      el.classList.add("flash");
+    }
+  }
+
+  function selectAffected(ids) {
+    state.selection = new Set(ids);
+    renderSelection();
+  }
+
+  function stopRun() {
+    const run = state.run;
+    if (!run) return;
+    run.cancelled = true;
+    for (const timer of run.timers) window.clearTimeout(timer);
+    state.run = null;
+    state.locked = new Set();
+    hideChip();
+    stepsPop.hidden = true;
+    if (run.channel === "temp") {
+      if (run.turn) run.turn.state = "stopped";
+      renderTempWindow(run.temp);
+      renderTempCard(run.temp);
+    } else {
+      setCardState(run.card, "stopped");
+      run.card.dataset.state = "undone";
+      const meta = run.card.querySelector(".ops-meta");
+      if (meta) meta.textContent = "已停止 · 本轮未应用任何修改";
+      setCardActions(run.card, [{ label: "在画板中查看", onClick: () => focusPanel(run.ids) }]);
+    }
+    renderShapes();
+    renderSelection();
+    toast("已停止，本轮未应用任何修改", null, 4000);
+    pumpQueue();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 运行状态 UI
+   * ------------------------------------------------------------------ */
+  function showChip(ids) {
+    chipText.textContent = "AI 正在处理 " + ids.length + " 个对象";
+    aiChip.hidden = false;
+    positionChipAndSteps();
+  }
+  function hideChip() { aiChip.hidden = true; stepsPop.hidden = true; }
+
+  function positionChipAndSteps() {
+    if (aiChip.hidden) return;
+    const { w, h } = stageSize();
+    const bbox = bboxOf(state.locked.size ? state.locked : state.selection);
+    const cw = aiChip.offsetWidth || 220;
+    const ch = aiChip.offsetHeight || 32;
+    const left = clamp(bbox.x, 8, Math.max(8, w - cw - 8));
+    let top = bbox.y - ch - 12;
+    if (top < 8) top = Math.min(h - ch - 8, bbox.y + bbox.h + 12);
+    aiChip.style.left = left + "px";
+    aiChip.style.top = top + "px";
+    if (!stepsPop.hidden) {
+      const pw = stepsPop.offsetWidth || 300;
+      const ph = stepsPop.offsetHeight || 150;
+      // 步骤面板固定在舞台右下角：不遮挡选区，也符合“点开看本轮步骤”的参考做法
+      stepsPop.style.left = Math.max(8, w - pw - 14) + "px";
+      stepsPop.style.top = Math.max(8, h - ph - 54) + "px";
+    }
+  }
+
+  function renderSteps() {
+    const run = state.run;
+    if (!run) { stepsList.innerHTML = ""; return; }
+    stepsList.innerHTML = "";
+    for (const step of run.steps) {
+      const row = document.createElement("div");
+      row.className = "step-row " + step.state;
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      if (step.state === "done") dot.textContent = "✓";
+      const label = document.createElement("span");
+      label.textContent = step.label;
+      row.appendChild(dot);
+      row.appendChild(label);
+      stepsList.appendChild(row);
+    }
+  }
+
+  chipMain.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (!state.run) return;
+    stepsPop.hidden = !stepsPop.hidden;
+    positionChipAndSteps();
+  });
+  $("chipStop").addEventListener("click", (event) => { event.stopPropagation(); stopRun(); });
+  $("stepsStop").addEventListener("click", stopRun);
+  document.addEventListener("pointerdown", (event) => {
+    if (!stepsPop.hidden && !event.target.closest(".steps-pop, .ai-chip")) {
+      stepsPop.hidden = true;
+    }
+  });
+
+  /* ------------------------------------------------------------------ *
+   * 会话记录（画板操作卡片）
+   * ------------------------------------------------------------------ */
+  function appendOpsCard(info) {
+    const card = document.createElement("div");
+    card.className = "ops-card";
+    card.dataset.state = "running";
+    card.innerHTML =
+      '<div class="ops-head">' +
+        '<span class="ops-glyph">✦</span>' +
+        '<span class="ops-title">画板操作 · ' + info.ids.length + ' 个对象</span>' +
+        '<span class="ops-state"><span class="micro-spin"></span><span class="state-text">进行中</span></span>' +
+      '</div>' +
+      '<div class="ops-prompt"></div>' +
+      '<div class="ops-meta">读取选区 → 规划修改 → 应用</div>' +
+      '<div class="ops-actions">' +
+        '<button class="link-btn muted" data-act="stop">停止</button>' +
+        '<button class="link-btn muted" data-act="focus">在画板中查看</button>' +
+      '</div>';
+    card.querySelector(".ops-prompt").textContent = "“" + info.prompt + "”";
+    const stop = card.querySelector('[data-act="stop"]');
+    stop.addEventListener("click", () => { if (state.run) stopRun(); });
+    const focus = card.querySelector('[data-act="focus"]');
+    focus.addEventListener("click", () => focusPanel(info.ids));
+    messages.appendChild(card);
+    scrollToBottom();
+    return card;
+  }
+
+  function setCardState(card, stateName) {
+    const map = { applied: "已应用", undone: "已撤销", stopped: "已停止", failed: "未应用" };
+    const text = map[stateName] || stateName;
+    const stateBox = card.querySelector(".ops-state");
+    if (!stateBox) return;
+    stateBox.innerHTML = "";
+    const span = document.createElement("span");
+    span.className = "state-text";
+    span.textContent = text;
+    if (stateName === "applied") {
+      stateBox.appendChild(span);
+      const undo = document.createElement("button");
+      undo.className = "link-btn";
+      undo.textContent = "撤销";
+      undo.addEventListener("click", () => undoEntry(card));
+      stateBox.appendChild(undo);
+    } else {
+      stateBox.appendChild(span);
+    }
+    if (stateName === "applied") {
+      const focus = card.querySelector('[data-act="focus"]');
+      if (focus) focus.hidden = false;
+    }
+    if (stateName === "undone" || stateName === "stopped") {
+      const focus = card.querySelector('[data-act="focus"]');
+      if (focus) focus.hidden = false;
+    }
+  }
+
+  function appendChat(text, who) {
+    const el = document.createElement("div");
+    el.className = "msg " + (who === "user" ? "user" : "ai");
+    if (who !== "user") {
+      const name = document.createElement("span");
+      name.className = "who";
+      name.textContent = "DeepSeek";
+      el.appendChild(name);
+    }
+    const body = document.createElement("span");
+    body.textContent = text;
+    el.appendChild(body);
+    messages.appendChild(el);
+  }
+  function appendAiMessage(text) { appendChat(text, "ai"); }
+
+  function appendUserRefMessage(text, count) {
+    const el = document.createElement("div");
+    el.className = "msg user";
+    const ref = document.createElement("span");
+    ref.className = "msg-ref";
+    ref.textContent = "◈ 画板选区 · " + count + " 个对象";
+    el.appendChild(ref);
+    const body = document.createElement("span");
+    body.textContent = text;
+    el.appendChild(body);
+    messages.appendChild(el);
+  }
+  function scrollToBottom() {
+    requestAnimationFrame(() => { messages.scrollTop = messages.scrollHeight; });
+  }
+
+  function focusPanel(ids) {
+    if (state.panelClosed) togglePanel(true);
+    panelPane.classList.add("flash");
+    window.setTimeout(() => panelPane.classList.remove("flash"), 900);
+    if (ids && ids.length) {
+      state.selection = new Set(ids);
+      renderSelection();
+    }
+    scrollToBottom();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 撤销
+   * ------------------------------------------------------------------ */
+  function undoEntry(card) {
+    if (state.run) { toast("AI 正在处理，等这一轮结束后再撤销"); return; }
+    const entry = card ? state.undoStack.find((item) => item.card === card) : state.undoStack[state.undoStack.length - 1];
+    if (!entry) { toast("没有可撤销的修改"); return; }
+    if (state.undoStack[state.undoStack.length - 1] !== entry) {
+      toast("之后还有新的修改，请用 Ctrl+Z 逐步撤销");
+      return;
+    }
+    state.undoStack.pop();
+    state.shapes = clone(entry.snapshot);
+    state.selection = new Set();
+    renderShapes();
+    renderSelection();
+    if (entry.temp) {
+      if (entry.tempTurn) entry.tempTurn.state = "undone";
+      renderTempWindow(entry.temp);
+      renderTempCard(entry.temp);
+      const stateEl = entry.temp.card ? entry.temp.card.querySelector(".temp-card-state") : null;
+      if (stateEl) stateEl.textContent = "已撤销";
+    } else if (entry.card) {
+      entry.card.dataset.state = "undone";
+      setCardState(entry.card, "undone");
+      const meta = entry.card.querySelector(".ops-meta");
+      if (meta) meta.textContent = "已撤销 · 画板已恢复到修改前";
+      setCardActions(entry.card, [{ label: "在画板中查看", onClick: () => focusPanel(entry.ids || []) }]);
+    }
+    toast("已撤销", null, 3200);
+  }
+
+  function deleteSelection() {
+    if (state.selection.size === 0) return;
+    if (state.run) { toast("AI 正在处理，等这一轮结束再编辑"); return; }
+    const ids = [...state.selection];
+    if (ids.some((id) => state.locked.has(id))) { toast("AI 正在处理这些对象"); return; }
+    const snapshot = snapshotShapes();
+    state.undoStack.push({ kind: "delete", snapshot });
+    state.shapes = state.shapes.filter((s) => !state.selection.has(s.id));
+    state.selection = new Set();
+    renderShapes();
+    renderSelection();
+    toast("已删除 · Ctrl+Z 撤销", null, 3200);
+  }
+
+  $("undoBtn").addEventListener("click", () => undoEntry(null));
+
+  /* ------------------------------------------------------------------ *
+   * 键盘
+   * ------------------------------------------------------------------ */
+  document.addEventListener("keydown", (event) => {
+    const typing = event.target && (event.target.tagName === "TEXTAREA" || event.target.tagName === "INPUT");
+    if (event.key === "Escape") {
+      if (!stepsPop.hidden) { stepsPop.hidden = true; return; }
+      if (state.selection.size > 0) { setSelection([]); return; }
+      return;
+    }
+    if (typing) return;
+    const mod = event.ctrlKey || event.metaKey;
+    if (mod && event.key.toLowerCase() === "z") { event.preventDefault(); undoEntry(null); return; }
+    if (mod && event.key === "a") { event.preventDefault(); setSelection(state.shapes.map((s) => s.id)); return; }
+    if (mod && event.key === "Enter") { event.preventDefault(); attachRef(); return; }
+    if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); deleteSelection(); return; }
+  });
+
+  /* ------------------------------------------------------------------ *
+   * 会话输入（演示对话仍然可用）
+   * ------------------------------------------------------------------ */
+  composerInput.addEventListener("input", () => {
+    sendBtn.disabled = composerInput.value.trim().length === 0;
+    composerInput.style.height = "auto";
+    composerInput.style.height = Math.min(120, composerInput.scrollHeight) + "px";
+  });
+  composerInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      sendComposer();
+    }
+  });
+  sendBtn.addEventListener("click", sendComposer);
+  function sendComposer() {
+    const text = composerInput.value.trim();
+    if (!text) return;
+    if (!state.aiEnabled && state.ref) { toast("本会话已关闭画板 AI 修改"); return; }
+    if (state.ref) {
+      const ids = state.ref.ids.filter((id) => state.shapes.some((s) => s.id === id));
+      clearRef();
+      composerInput.value = "";
+      composerInput.style.height = "auto";
+      sendBtn.disabled = true;
+      if (ids.length === 0) {
+        toast("引用的对象已被删除，重新框选一下");
+        renderRefs();
+        return;
+      }
+      appendUserRefMessage(text, ids.length);
+      const plan = planFor(text, ids);
+      const card = appendOpsCard({ prompt: text, ids, plan });
+      requestRun({ channel: "chat", ids, prompt: text, card });
+      return;
+    }
+    appendChat(text, "user");
+    composerInput.value = "";
+    composerInput.style.height = "auto";
+    sendBtn.disabled = true;
+    scrollToBottom();
+    window.setTimeout(() => {
+      appendAiMessage("收到。要改画板的话：先框选对象，在输入框上方点「引用选区」，然后再在这里说一句。");
+      scrollToBottom();
+    }, 600);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * v3-3 AI 开关（画板 × 会话）
+   * ------------------------------------------------------------------ */
+  function setAiEnabled(on) {
+    state.aiEnabled = !!on;
+    aiToggle.classList.toggle("off", !state.aiEnabled);
+    aiToggle.setAttribute("aria-pressed", String(state.aiEnabled));
+    $("aiState").textContent = "本会话 · " + (state.aiEnabled ? "开" : "关");
+    if (!state.aiEnabled) {
+      if (state.run) stopRun();
+      for (const task of state.queue) {
+        if (task.channel === "temp" && task.turn) task.turn.state = "stopped";
+        if (task.channel === "chat" && task.card) {
+          const meta = task.card.querySelector(".ops-meta");
+          if (meta) meta.textContent = "已取消 · AI 已关闭";
+        }
+      }
+      state.queue = [];
+      for (const session of [...state.tempSessions]) closeTempSession(session);
+      state.ref = null;
+      composerRefs.innerHTML = "";
+      $("hint").hidden = true;
+      toast("已关闭本会话的画板 AI 修改", null, 3200);
+    } else {
+      toast("已开启本会话的画板 AI 修改", null, 2400);
+      $("hint").hidden = false;
+    }
+    renderRefs();
+    renderSelection();
+    for (const session of state.tempSessions) renderTempWindow(session);
+  }
+
+  aiToggle.addEventListener("click", () => setAiEnabled(!state.aiEnabled));
+
+  /* ------------------------------------------------------------------ *
+   * 面板开合 / 工具 / 演示
+   * ------------------------------------------------------------------ */
+  $("closePanelBtn").addEventListener("click", () => togglePanel(false));
+  openPanelBtn.addEventListener("click", () => togglePanel(true));
+  function togglePanel(open) {
+    state.panelClosed = !open;
+    workspace.classList.toggle("no-panel", state.panelClosed);
+    panelPane.style.display = open ? "" : "none";
+    openPanelBtn.hidden = open;
+    if (open) { requestAnimationFrame(() => { renderSelection(); }); }
+  }
+
+  for (const tool of document.querySelectorAll(".tool-btn[data-tool]")) {
+    tool.addEventListener("click", () => {
+      for (const other of document.querySelectorAll(".tool-btn[data-tool]")) other.classList.remove("active");
+      tool.classList.add("active");
+    });
+  }
+
+  $("hintClose").addEventListener("click", () => { $("hint").hidden = true; });
+
+  $("demoBtn").addEventListener("click", (event) => {
+    event.stopPropagation();
+    demoPop.hidden = !demoPop.hidden;
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!demoPop.hidden && !event.target.closest(".demo-pop, #demoBtn")) demoPop.hidden = true;
+  });
+  $("demoFail").addEventListener("change", (event) => { state.demo.fail = event.target.checked; });
+  $("demoSlow").addEventListener("change", (event) => { state.demo.slow = event.target.checked; });
+  $("demoStop").addEventListener("click", () => { if (state.run) stopRun(); else toast("当前没有运行中的任务"); });
+  $("demoReset").addEventListener("click", () => {
+    state.shapes = clone(INITIAL_SHAPES);
+    state.selection = new Set();
+    state.undoStack = [];
+    state.locked = new Set();
+    state.run = null;
+    state.queue = [];
+    state.ref = null;
+    for (const session of [...state.tempSessions]) closeTempSession(session);
+    hideChip();
+    stepsPop.hidden = true;
+    aiChip.hidden = true;
+    renderShapes();
+    renderSelection();
+    renderRefs();
+    messages.innerHTML = "";
+    seedConversation();
+    $("hint").hidden = false;
+    demoPop.hidden = true;
+    toast("原型已重置", null, 2400);
+  });
+
+  /* ------------------------------------------------------------------ *
+   * toast
+   * ------------------------------------------------------------------ */
+  function toast(text, undo, duration) {
+    const el = document.createElement("div");
+    el.className = "toast";
+    const label = document.createElement("span");
+    label.textContent = text;
+    el.appendChild(label);
+    if (undo) {
+      const btn = document.createElement("button");
+      btn.className = "toast-undo";
+      btn.textContent = "撤销";
+      btn.addEventListener("click", () => { undo(); el.remove(); });
+      el.appendChild(btn);
+    }
+    toastWrap.appendChild(el);
+    window.setTimeout(() => el.remove(), duration || 3200);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 初始会话
+   * ------------------------------------------------------------------ */
+  function seedConversation() {
+    appendChat("我想在画板上做一版登录页草图，先把结构摆出来。", "user");
+    appendAiMessage("好，画板就在右侧面板里，和对话并存。框选对象后，输入框上方会出现「引用选区」——点一下，选中的对象就挂到这里的输入框上，你直接在这个对话框里下命令就行。");
+    appendAiMessage("只想顺手问一句、不想打扰主对话？点选区上的「✨ 快速问」开临时会话，多轮追问都行，关掉就丢。");
+    appendAiMessage("先试试：框选两个矩形 → 点「引用选区」→ 输入「把这两个矩形改成红色」→ 回车。");
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 启动
+   * ------------------------------------------------------------------ */
+  renderShapes();
+  seedConversation();
+  renderRefs();
+  window.addEventListener("resize", () => {
+    positionChipAndSteps();
+    positionTempWindows(false);
+    if (state.selection.size > 0 && !state.run) {
+      const bbox = bboxOf(state.selection);
+      positionSelbar(bbox);
+    }
+  });
+
+  // 供自动化验收（Playwright）读取的调试句柄
+  window.__proto = {
+    state,
+    setAiEnabled,
+    attachRef,
+    clearRef,
+    openTempSession,
+    closeTempSession,
+    sendTemp,
+    promoteTempSession,
+    requestRun,
+    stopRun,
+    undo: () => undoEntry(null),
+    setSelection,
+    refIds: () => (state.ref ? state.ref.ids.slice() : []),
+    tempCount: () => state.tempSessions.length,
+    shapeCount: () => state.shapes.length,
+    shapeById: (id) => state.shapes.find((s) => s.id === id)
+  };
+})();
+</script>
+</body>
+</html>
