@@ -107,7 +107,7 @@ function runPowerShell(fixture, scriptName, expectedTarget, scriptBytes) {
   // Windows PowerShell can extend PSModulePath at startup; reset only this
   // child process before importing the two required built-in manifests.
   const command = [
-    '[Environment]::SetEnvironmentVariable('PSModulePath', ' + quote(moduleRoot) + ', 'Process')',
+    "[Environment]::SetEnvironmentVariable('PSModulePath', " + quote(moduleRoot) + ", 'Process')",
     "$ErrorActionPreference = 'Stop'",
     "[Console]::Out.WriteLine('fixture: importing Management')",
     'Import-Module ' + quote(path.join(moduleRoot, 'Microsoft.PowerShell.Management', 'Microsoft.PowerShell.Management.psd1')) + ' -ErrorAction Stop',
