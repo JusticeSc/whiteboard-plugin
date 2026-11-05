@@ -23,7 +23,7 @@ async function loadFixture() {
 function checkPhase(phase, fixture) {
   assert.ok(phases.includes(phase));
   const { root, currentDir, v1Dir, link, profilePackage } = fixture;
-  assert.equal(path.dirname(root), fs.realpathSync(os.tmpdir()));
+  assert.equal(path.dirname(root), fs.realpathSync.native(os.tmpdir()));
   assert.ok(path.basename(root).startsWith('whiteboard-install-rollback-'));
   for (const owned of [currentDir, v1Dir, link, profilePackage, fixture.home, fixture.temp]) {
     const relative = path.relative(root, owned);
@@ -31,8 +31,8 @@ function checkPhase(phase, fixture) {
   }
   const expectedTarget = phase === 'installed' ? currentDir : v1Dir;
   assert.ok(fs.lstatSync(link).isSymbolicLink(), 'profile entry must remain a junction');
-  assert.equal(path.resolve(fs.readlinkSync(link)).toLowerCase(), expectedTarget.toLowerCase(), 'exact junction target');
-  assert.equal(fs.realpathSync(link).toLowerCase(), fs.realpathSync(expectedTarget).toLowerCase());
+  assert.equal(fs.realpathSync.native(path.resolve(fs.readlinkSync(link))).toLowerCase(), fs.realpathSync.native(expectedTarget).toLowerCase(), 'exact canonical junction target');
+  assert.equal(fs.realpathSync.native(link).toLowerCase(), fs.realpathSync.native(expectedTarget).toLowerCase());
   assert.deepEqual(JSON.parse(fs.readFileSync(profilePackage, 'utf8').replace(/^\uFEFF/, '')), {
     name: 'synthetic-web-profile',
     private: true,
@@ -54,6 +54,7 @@ function checkPhase(phase, fixture) {
   assert.equal(fixture.childEnv.TEMP, fixture.temp);
   assert.equal(fixture.childEnv.TMP, fixture.temp);
   assert.equal(fixture.childEnv.DSH_HOME, undefined);
+  assert.equal(fixture.childEnv.PSModulePath, path.join(path.dirname(fixture.powershell), 'Modules'), 'only built-in PowerShell modules are searched');
 }
 function assertRemoved(root) {
   assert.ok(root, 'observer must have seen an allocated root');

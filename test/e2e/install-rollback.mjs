@@ -34,7 +34,7 @@ function assertRegularFile(root, file) {
   assert.ok(stat.isFile() && !stat.isSymbolicLink(), 'fixture file must not be a link: ' + file);
 }
 function sameDirectory(a, b) {
-  return fs.realpathSync(a).toLowerCase() === fs.realpathSync(b).toLowerCase();
+  return fs.realpathSync.native(a).toLowerCase() === fs.realpathSync.native(b).toLowerCase();
 }
 function linkValue(target) {
   return 'link:' + target.replace(/\\/g, '/');
@@ -102,10 +102,9 @@ function runPowerShell(fixture, scriptName, expectedTarget, scriptBytes) {
   assertDirectoryChain(fixture.root, fixture.temp);
   // The byte-checked fixture scripts use a child-only policy: no registry change
   // or desktop Zone validation is needed in a headless Windows runner.
-  const command = "[Console]::Out.WriteLine('fixture PowerShell entry'); Set-PSDebug -Trace 1; & '" + script.replace(/'/g, "''") + "'";
   const started = Date.now();
   const result = spawnSync(fixture.powershell, [
-    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command,
+    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script,
   ], {
     cwd: fixture.currentDir,
     env: fixture.childEnv,
@@ -130,7 +129,7 @@ export async function runInstallRollbackFixture({ onPhase = () => {} } = {}) {
   if (!fs.existsSync(powershell)) throw new Error('Windows PowerShell was not found at ' + powershell);
   const installBytes = fs.readFileSync(path.join(repo, 'scripts', 'install-v3.ps1'));
   const rollbackBytes = fs.readFileSync(path.join(repo, 'scripts', 'rollback-v1.ps1'));
-  const tempParent = fs.realpathSync(os.tmpdir());
+  const tempParent = fs.realpathSync.native(os.tmpdir());
   const root = fs.mkdtempSync(path.join(tempParent, 'whiteboard-install-rollback-'));
   const identity = fs.lstatSync(root);
   let failure;
@@ -165,6 +164,8 @@ export async function runInstallRollbackFixture({ onPhase = () => {} } = {}) {
       SystemRoot: systemRoot,
       WINDIR: systemRoot,
       PATH: path.join(systemRoot, 'System32'),
+      // Command discovery must not scan unrelated machine/user module trees.
+      PSModulePath: path.join(path.dirname(powershell), 'Modules'),
       USERPROFILE: home,
       HOME: home,
       HOMEDRIVE: homeRoot,
