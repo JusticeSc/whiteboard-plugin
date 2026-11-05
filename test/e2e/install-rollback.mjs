@@ -102,8 +102,10 @@ function runPowerShell(fixture, scriptName, expectedTarget, scriptBytes) {
   assertDirectoryChain(fixture.root, fixture.temp);
   // The byte-checked fixture scripts use a child-only policy: no registry change
   // or desktop Zone validation is needed in a headless Windows runner.
+  const command = "[Console]::Out.WriteLine('fixture PowerShell entry'); Set-PSDebug -Trace 1; & '" + script.replace(/'/g, "''") + "'";
+  const started = Date.now();
   const result = spawnSync(fixture.powershell, [
-    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script,
+    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command,
   ], {
     cwd: fixture.currentDir,
     env: fixture.childEnv,
@@ -112,7 +114,7 @@ function runPowerShell(fixture, scriptName, expectedTarget, scriptBytes) {
     maxBuffer: 128 * 1024,
     windowsHide: true,
   });
-  if (result.error) throw new Error(scriptName + ' could not complete: ' + result.error.message + '\nstdout:\n' + (result.stdout || '') + '\nstderr:\n' + (result.stderr || ''), { cause: result.error });
+  if (result.error) throw new Error(scriptName + ' could not complete after ' + (Date.now() - started) + 'ms: ' + result.error.message + '\nstdout:\n' + (result.stdout || '') + '\nstderr:\n' + (result.stderr || ''), { cause: result.error });
   if (result.signal !== null) throw new Error(scriptName + ' was terminated by signal ' + result.signal);
   if (result.status !== 0) {
     throw new Error(scriptName + ' failed with exit ' + result.status + ':\n' + (result.stderr || result.stdout || '').trim());
