@@ -102,9 +102,23 @@ function runPowerShell(fixture, scriptName, expectedTarget, scriptBytes) {
   assertDirectoryChain(fixture.root, fixture.temp);
   // The byte-checked fixture scripts use a child-only policy: no registry change
   // or desktop Zone validation is needed in a headless Windows runner.
+  const quote = value => "'" + value.replace(/'/g, "''") + "'";
+  const moduleRoot = path.join(path.dirname(fixture.powershell), 'Modules');
+  // Windows PowerShell can extend PSModulePath at startup; reset only this
+  // child process before importing the two required built-in manifests.
+  const command = [
+    '[Environment]::SetEnvironmentVariable('PSModulePath', ' + quote(moduleRoot) + ', 'Process')',
+    "$ErrorActionPreference = 'Stop'",
+    "[Console]::Out.WriteLine('fixture: importing Management')",
+    'Import-Module ' + quote(path.join(moduleRoot, 'Microsoft.PowerShell.Management', 'Microsoft.PowerShell.Management.psd1')) + ' -ErrorAction Stop',
+    "[Console]::Out.WriteLine('fixture: importing Utility')",
+    'Import-Module ' + quote(path.join(moduleRoot, 'Microsoft.PowerShell.Utility', 'Microsoft.PowerShell.Utility.psd1')) + ' -ErrorAction Stop',
+    "[Console]::Out.WriteLine('fixture: running script')",
+    '& ' + quote(script),
+  ].join('; ');
   const started = Date.now();
   const result = spawnSync(fixture.powershell, [
-    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script,
+    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command,
   ], {
     cwd: fixture.currentDir,
     env: fixture.childEnv,
