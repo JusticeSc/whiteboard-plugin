@@ -2,18 +2,18 @@
 
 > 适用版本：`@local/whiteboard` 3.0.0（右侧栏承载 + 选区引用桥接）
 > 决策依据：[`DECISIONS.md`](DECISIONS.md) · 架构：[`adr/0003-canvas-agent-bridge.md`](adr/0003-canvas-agent-bridge.md)
-> 自检证据：[`evidence-v3/`](evidence-v3/)（P0 spike 全部通过、v3 e2e 结果 JSON 与截图）
-> 证据隐私：真实会话截图 `live-*.png` 含真实对话上下文，已从公开 Git 排除，只在本机保留；
+> 历史自检证据（2026-11-04）：[`evidence-v3/`](evidence-v3/)（P0 spike 与 v3 e2e 结果 JSON、截图）；并非本次重新验证。
+> 证据隐私：真实会话截图 `live-*.png` 含真实对话上下文，应只在本机保留，不纳入公开 Git；
 > 公开仓库使用隔离 e2e 证据，详见 [`evidence-v3/README.md`](evidence-v3/README.md)。
 
-本清单给**用户**在真实 3080 上逐项确认；每项都对应一条自动化证据，用户只需确认“看起来/用起来对”。
+本清单供用户逐项检查已授权的目标实例。§7 是 2026-11-04 的历史自检，并非所有项目都有自动化证据，也不代表当前实例状态。
 
-## 0. 准备（当前状态：已完成）
+## 0. 准备
 
-1. profile 已指向本目录；3080 已于 **2026-11-04 08:50 由用户重启**，当前运行 v3.0.0。
-   （首次安装才需要：`scripts\install-v3.ps1` + 重启 `dsh web`；重启会结束当前会话，必须由用户执行。）
-2. 如果页面显示的仍是旧行为，**刷新一次 `http://127.0.0.1:3080`** 即可加载新 client（client 改动不需重启）。
-   Host 侧（工具/API）的改动才需要重启，本次 v3 的 Host 已随用户重启生效。
+1. 历史记录中，profile 指向当时的源码目录，3080 在 2026-11-04 由用户重启。当前实例的 profile、端口和版本须另行核实。
+   需要安装或切换时，先核对 profile、链接、清单和备份，取得用户授权；脚本与重启的影响见 [项目上下文](PROJECT-CONTEXT.md#9-安装--回滚)。
+2. 页面显示旧行为时，先确认目标实例和 DSH 的插件加载方式，再按需刷新页面或重启。
+   重启会结束当前会话；先取得用户授权。
 
 ## 1. 承载面（不再有“上边栏消失 / 第二对话框”）
 
@@ -54,8 +54,8 @@
 
 ## 4. 模型读写画板（工具）
 
-- [ ] 让模型“把选中的两个矩形改成蓝色，并向左移动 20”：本轮结束后两个矩形变蓝并左移，作为**一步可撤销**的修改。
-- [ ] 画板头栏 toast 显示「AI 修改了 N 处」，点「撤销」可整轮回退（toast 约 8 秒；之后也可 `Ctrl/Cmd+Z` 撤销这轮 AI 修改）。
+- [ ] 让模型“把选中的两个矩形改成蓝色，并向左移动 20”：观察调用结果；一次有效写入中的修改作为一个变更可撤销。模型若分多次调用，每次有效调用分别记入撤销历史，不承诺整轮一步回退。
+- [ ] 画板头栏 toast 显示「AI 修改了 N 处」，点「撤销」回退该次变更；之后也可使用 `Ctrl/Cmd+Z`。若字段或插入对象在变更后又被修改，撤销会跳过冲突项并报告。
 - [ ] 让模型读取选区：模型回复里能说出对象 id、类型、位置/尺寸、颜色（说明序列化里带了 `canvasId`，模型能直接调 `whiteboard_read_selection`）。
 - [ ] AI 修改期间，被改对象有短暂的描边闪烁/高亮提示；人类随后改同一字段时以人类为准（不会闪回）。
 
@@ -69,7 +69,7 @@
 
 ## 6. 停止 / 撤销 / 持久化
 
-- [ ] 让模型做一个多步画板操作，运行中点原生「停止生成」：回合立即停止，画板不会出现半截修改（原子写：要么整轮应用，要么没有）。
+- [ ] 让模型做多步画板操作，运行中点原生「停止生成」：已完成的调用不会自动回滚，每次有效调用单独原子提交，冲突字段可跳过而其他字段仍可提交；整轮可能只完成部分调用，已提交的变更可逐项撤销。
 - [ ] 人类操作（画/移动/改色/删除）可用 `Ctrl/Cmd+Z` / 撤销按钮逐步回退；重做可用。
 - [ ] 刷新页面/重开浏览器后：画板内容、画板名、当前画板选择都在。
 - [ ] 画板下拉可切换/新建/重命名/删除画板；JSON 导入/导出、PNG 导出可用。
@@ -81,9 +81,9 @@
 | P0 spike（11 项承载面，真实 Chrome + 真实模型） | 全部通过、无降级；见 [`evidence-v3/SPIKE-RESULT.md`](evidence-v3/SPIKE-RESULT.md) 与截图 |
 | Host 单测/冒烟 `node test/smoke.mjs` | **216 checks passed / SMOKE OK** |
 | 客户端纯逻辑 + 注册面 `node test/client-smoke.mjs` | **105 checks passed / CLIENT SMOKE OK** |
-| 隔离端到端 `node test/e2e/v3.mjs` | **E2E V3 OK**：右栏单画板、无旧视图 tab、切到文件 tab 后画板保持挂载（keepMounted）并可切回、画 2 矩形、dock chip 与输入框左边缘对齐断言（默认视口 delta=0；收起右栏的宽栏 chipLeft=editorLeft=cardLeft=421、delta=0）、900×700 窄窗复测（chipLeft=editorLeft=72、工具栏无横向溢出）、原生 chip 插入、发送后整块渲染且用户指令文本保留（`transcriptHasInstruction=true`，不再只剩 chip）、AI 开关持久化（`aiByCanvas` 写入并读回）、快照开关 → 草稿图片 → 发送后 image + chip、**模型 `whiteboard_replace_selection` 改两块矩形（rev 2→3、toast「AI 修改了 2 处」）→ 点撤销颜色恢复、AI 关时模型改画板被 Host 拒绝且画布 rev 不变、删除输入框 chip 后 dock 可再次插入、刷新后画板 tab/AI 开关/历史消息引用 chip 均恢复、零真实存储写入、0 page/console error；结果见 [`evidence-v3/v3-result.json`](evidence-v3/v3-result.json) 与 `v3-01…11` 截图 |
+| 隔离端到端 `node test/e2e/v3.mjs` | **E2E V3 OK**：右栏单画板、无旧视图 tab、切到文件 tab 后画板保持挂载（keepMounted）并可切回、画 2 矩形、dock chip 与输入框左边缘对齐断言（默认视口 delta=0；收起右栏的宽栏 chipLeft=editorLeft=cardLeft=421、delta=0）、900×700 窄窗复测（chipLeft=editorLeft=72、工具栏无横向溢出）、原生 chip 插入、发送后整块渲染且用户指令文本保留（`transcriptHasInstruction=true`，不再只剩 chip）、AI 开关持久化（`aiByCanvas` 写入并读回）、快照开关 → 草稿图片 → 发送后 image + chip、**模型 `whiteboard_replace_selection` 改两块矩形（rev 2→3、toast「AI 修改了 2 处」）→ 点撤销颜色恢复、AI 关时模型改画板被 Host 拒绝且画布 rev 不变、删除输入框 chip 后 dock 可再次插入、刷新后画板 tab/AI 开关/历史消息引用 chip 均恢复、所选真实存储元数据前后无差异（有限检查）、0 page/console error；结果见 [`evidence-v3/v3-result.json`](evidence-v3/v3-result.json) 与 `v3-01…11` 截图 |
 | 真实 3080 实机审查（2026-11-04，agent 用 ego-browser 全权自查） | 对齐修复前后截图 `live-before-alignment.png` / `live-after-alignment.png`（窄栏 chipLeft=editorLeft=296）与 `live-wide-column.png`（收起右栏的宽栏 card/chip left=413，均 delta=0）；实机发送后引用只显示紧凑标签 `live-sent-chip.png`；AI 关时模型两次调用被 `ai_disabled` 拒绝、画布 rev 不变 `live-ai-disabled.png`；原生「停止生成」立即停止且无半截画板改动 `live-stop.png`；另实测 reload 后 tab/AI 开关/消息 chip 恢复、画板删除后自动回退到默认画板、AI 修改可用 `Ctrl+Z` 回退（rev 4→5）；历史用户消息修复后同时显示引用 chip 与输入指令（`live-instruction.png`）；模型改文字内容后选中框贴合新文字（`live-text-selection.png`）；品牌色色板实测 rgb(65,118,230)（`live-brand-swatch.png`） |
-| 真实 store 零写入 | e2e 前后对真实 `DSH_HOME` 的 sessions / whiteboard / workspace.json 做 size+mtime 快照比对，**无差异** |
+| 历史真实 store 元数据比较 | e2e 前后比较部分 sessions、whiteboard 条目及 `workspace.json` 的 size+mtime，所选元数据无差异；读取错误会被忽略，不能证明全部文件无写入 |
 
 ## 8. 已知限制（v3.0）
 
@@ -94,13 +94,15 @@
 - 「附带选区快照」开关默认关，只保留在当前页面挂载态、不持久化；发送后想再次引用同一选区，点一下画布/重新框选即可重置 dock。
 - 一次消息里放多个画板引用 chip 时，模型会看到多段翻译；UI 不阻止，但推荐一次一个（dock 在选区变化前不会重复插入）。
 - 同步仍是 600ms 轮询；不是流式。
-- 停止回合在 P0 spike 已验证（`remote.session.cancel`）；2026-11-04 实机 3080 也实测：长文生成中点原生「停止生成」立即停止（显示「已停止」），画板无半截修改；v3 隔离 e2e 不主动打断模型轮次（避免用例不稳定），停止由人工验收 §6 覆盖。
+- 停止回合在 P0 spike 已验证（`remote.session.cancel`）；2026-11-04 在 3080 的一次实机观察中，长文生成被原生「停止生成」按钮停止（显示「已停止」）且未见半截画板改动；这不能证明多调用轮次整体原子；v3 隔离 e2e 不主动打断模型轮次（避免用例不稳定），停止由人工验收 §6 覆盖。
 
 ## 9. 回滚
 
+仅在用户明确授权后操作：先核对 `%USERPROFILE%\.dsh\profiles\web` 的链接与 `package.json`、目标 v1 目录，并备份原状态。脚本会切换 junction，也会更新已有的匹配 `link:` 依赖；中途失败可能留下部分切换。它不会自行重启 DSH，重启会结束当前会话。
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\rollback-v1.ps1
-# 把 profile 链回 ../whiteboard-plugin-v1，重启 3080 即回到 v1
+# 把 profile 链回 ../whiteboard-plugin-v1；经用户授权后重启目标 DSH 实例
 ```
 
-v2 的 `/api/whiteboard/v2` 数据格式未变，v3 只是换了承载与入口；回滚 v1 不会读 v3 的 session_pref 新字段（`aiByCanvas` 被忽略），旧画板文档仍可被 v1 读取。
+历史发布记录称 canvas 文档格式未变，v1 不使用 v3 的 `session_pref.aiByCanvas`。这不是本次兼容性实测；回滚前应核对目标版本、数据兼容性及备份。

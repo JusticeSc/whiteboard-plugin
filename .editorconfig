@@ -1,0 +1,14 @@
+# Formatting guidance for added governance assets only. Existing plugin files
+# retain their own formatting; no formatter or automatic gate is installed.
+
+[{.agents/**,.github/**,docs/defensive-patterns/**,docs/i18n/**,docs/postmortem/**,docs/cookbook/**}]
+end_of_line = lf
+insert_final_newline = true
+
+[/{.gitattributes,.editorconfig,.rgignore,AGENTS.md,CLAUDE.md,CONTRIBUTING*.md,SAFETY*.md,SOURCE-LICENSE.txt}]
+end_of_line = lf
+insert_final_newline = true
+
+[docs/{AGENTS.md,architecture*.md,development*.md,testing*.md}]
+end_of_line = lf
+insert_final_newline = true

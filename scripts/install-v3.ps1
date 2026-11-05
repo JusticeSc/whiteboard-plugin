@@ -1,6 +1,7 @@
-# Point the Harness profile at this checkout of the whiteboard plugin.
-# Only replaces the `node_modules/@local/whiteboard` link — the running
-# `dsh web` process is untouched until it is restarted.
+# Point the Harness web profile at this checkout.
+# Replaces the plugin junction and updates an existing matching link: dependency
+# in the profile package.json. Does not migrate or restore data.
+# The running dsh web process is unchanged; restart explicitly to activate.
 $ErrorActionPreference = 'Stop'
 
 $here = Split-Path -Parent $PSScriptRoot

@@ -1,14 +1,11 @@
 # ADR-0002：画板作为独立产物 + 会话作为操作者（Canvas v2）
 
-- 状态：**已接受并实现（v2.0.0）**；已装入 profile，等待用户重启 3080 生效
+- 状态：**已接受并实现（v2.0.0）的历史设计记录**
 - 日期：2026-11-03
 - 取代：ADR-0001（v1 的"全局面板 + 全局 aiStore + 画布级单锁"实现，见 `../whiteboard-plugin-v1/docs/agent-bridge.md` §12–13）
 
-> **后续变更（2026-11-04，[ADR-0003](0003-canvas-agent-bridge.md)）**：本 ADR 的
-> **D12（AI 入口）**、**D18（工具契约）**、**D19（承载面）**、**D20（实施顺序）** 已被取代；
-> 其余决策（文档权威、rev/fieldRevs、claim 软锁、字段级合并、历史、撤销、单用户、上限）继续有效。
-> v3 不再使用 `conversation.view`、画布内 AI 输入框与显式 claimId 工具流程；决策总表见
-> [`../DECISIONS.md`](../DECISIONS.md)。
+> **v3 适用范围（[ADR-0003](0003-canvas-agent-bridge.md)）**：D12（AI 入口）、D18（工具契约）、D19（承载面）和 D20（实施顺序）已被取代。Host 权威、版本和字段级合并仍是 v3 的基础，但下文的公开 claim 流程与“AI 每轮一次撤销”是 v2 历史设计，不是当前工具保证。
+> v3 模型写入不注册公开 claim；每次有效工具调用单独原子提交并可按该变更撤销，多个调用不合并为整轮事务。当前契约见 [`../DECISIONS.md`](../DECISIONS.md) 和 [`../PROJECT-CONTEXT.md`](../PROJECT-CONTEXT.md)。
 
 ## 1. 背景
 

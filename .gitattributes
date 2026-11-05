@@ -1,0 +1,20 @@
+# Normalize only added governance assets. Preserve existing plugin-file policy;
+# do not impose a repository-wide checkout conversion on source or product docs.
+/.gitattributes text eol=lf
+/.editorconfig text eol=lf
+/.rgignore text eol=lf
+/AGENTS.md text eol=lf
+/CLAUDE.md text eol=lf
+/CONTRIBUTING*.md text eol=lf
+/SAFETY*.md text eol=lf
+/SOURCE-LICENSE.txt text eol=lf
+/.agents/** text eol=lf
+/.github/** text eol=lf
+/docs/AGENTS.md text eol=lf
+/docs/architecture*.md text eol=lf
+/docs/development*.md text eol=lf
+/docs/testing*.md text eol=lf
+/docs/defensive-patterns/** text eol=lf
+/docs/i18n/** text eol=lf
+/docs/postmortem/** text eol=lf
+/docs/cookbook/** text eol=lf

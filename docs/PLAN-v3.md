@@ -1,5 +1,7 @@
 # v3 实施计划（Spike → M1 → 验收）
 
+> 历史适用范围（2026-11-05 补充）：本文保留当时计划和证据；“零写入”仅指所选大小/时间戳快照，不能证明全盘不变。旧安装/回滚探针曾操作真实 profile，现已改为临时合成 fixture；当前隔离方式和证据边界见 [测试说明](../test/e2e/README.md)。
+
 - 状态：**M1 已实现（3.0.0）；用户已于 2026-11-04 08:50 重启 3080，agent 已用 ego-browser 完成实机自查并修复“引用与对话框不对齐”；待用户按 ACCEPTANCE-v3 抽验确认**；§0 为开发前基线留档
 - 依据：[`DECISIONS.md`](DECISIONS.md)（唯一决策源）、[`adr/0003-canvas-agent-bridge.md`](adr/0003-canvas-agent-bridge.md)（架构）、
   [`SPIKE.md`](SPIKE.md)（先验证什么）

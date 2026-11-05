@@ -9,6 +9,7 @@
 | [`../CHANGELOG.md`](../CHANGELOG.md) | 版本变更记录（3.0.0 起） | 权威 |
 | [`../README.md`](../README.md) | 项目入口：能力、目录、测试、安装/回滚、限制 | 权威 |
 | [`PROJECT-CONTEXT.md`](PROJECT-CONTEXT.md) | 一页式项目上下文：定位、架构、数据流、不变量、文件地图、测试、限制、发布状态 | 权威（本文件） |
+| [`WRAP-UP-2026-11-05.md`](WRAP-UP-2026-11-05.md) | 治理整合、隔离测试与证据边界 | 本次验证 |
 | [`ACCEPTANCE-v3.md`](ACCEPTANCE-v3.md) | v3 人工验收清单 | 权威 |
 | [`DECISIONS.md`](DECISIONS.md) | 决策总表（S/B/C 编号 + 发布/下一阶段 R 编号） | 权威（决策唯一来源） |
 | [`PLAN-v3.md`](PLAN-v3.md) | v3 M1 执行计划与 T2–T10 任务记录 | 已完成（历史计划） |

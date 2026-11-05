@@ -1,9 +1,9 @@
 # 画板插件决策日志（Canvas v3）
 
 - 更新：2026-11-04（M1 实现完成；末尾新增实现期发现 S9/B14/B15/C8）
-- 状态：**本文件是产品/交互/契约决策的唯一权威来源**。与旧文档冲突时，以本文件为准；
-  旧文档中已过时的段落都在文首加了“已被取代”的标注。
-- 维护规则：只追加、只改状态，不删除历史；被否决的方案保留在 §4，避免重复讨论。
+- 状态：本文件汇总 v3 产品、交互与契约决策；历史证据按记录时间理解，不代替对当前实例的验证。
+  当前适用范围见各文档说明和项目上下文。
+- 维护规则：保留历史与 §4 中被否决方案的理由；更正会误导当前使用的事实。
 - 架构说明见 [`adr/0003-canvas-agent-bridge.md`](adr/0003-canvas-agent-bridge.md)。
 
 ## 0. 一句话
@@ -18,7 +18,7 @@
 | S1 | 承载面 = **DSH 原生右侧栏 tab**：`ctx.sidebarRightTabs.register({ id, kind: 'whiteboard', priority: 'extension', title, keepMounted: true, guide: [...] })` + keyed `sidebar.right.pane.tab` 页面；一个 tab 内部切换画板。 | 生效（已实现；`guide` 见 S9） |
 | S2 | **移除** `conversation.view` 注册：画板不再作为会话视图 tab，不再与对话互斥。回滚靠 `scripts/rollback-v1.ps1`。 | 生效（已实现；e2e 断言无旧视图 tab） |
 | S3 | 画板数据层沿用 v2，不动：Host 权威文档 `{id,name,rev,elements,changes}`、元素级 `rev`/`fieldRevs`、字段级合并（人类胜）、append-only 变更、600ms `/sync` 轮询、350ms 防抖落盘。 | 生效 |
-| S4 | 人类撤销 = 操作级 undo/redo；AI 撤销 = 每轮一个逆字段补丁（字段已被人类改过则跳过并提示）。入口：画板头栏 + `Ctrl/Cmd+Z`。 | 生效 |
+| S4 | 人类撤销 = 操作级 undo/redo；AI 的每次有效 `whiteboard_replace_selection` 调用产生一个可撤销变更，无有效修改则不产生变更。同一轮的多次调用不合并为一步；撤销按变更选择性回退，之后已改变的字段或对象会跳过并报告。入口：画板头栏 + `Ctrl/Cmd+Z`。 | 生效 |
 | S5 | 画板列表沿用 v2：每会话 `lastCanvasId`（`session_pref`），头栏下拉切换/新建/重命名/删除。未记录 `lastCanvasId` 的新会话打开 Host 的**默认画板**（默认画板跨会话共享，属 v2 既有行为）。 | 生效（已实现） |
 | S6 | AI 开关：**（画板 × 会话）粒度**，画板头栏可见，标签明确写「本会话」，默认开；关闭 = 完全禁用（不读不改，入口收起，Host 侧也拒绝工具调用）。状态存 `session_pref.aiByCanvas[canvasId]`，客户端读回。 | 生效（已实现；e2e 断言写读一致） |
 | S7 | 画板本身的视觉/反馈在画板内完成（对象描边闪烁、头栏 toast、撤销按钮、AI 处理中指示）；**不在会话里加任何卡片或标记**。 | 生效 |
@@ -41,7 +41,7 @@
 | B6 | 图片：默认不附；画板头栏提供「附带选区快照」开关（默认关，按页面挂载态保留、不持久化），开启后引用时把选区渲染成 PNG 作为**原生图片附件**加入草稿（会话里就是一条 image，与引用 chip 并存）。 | 生效（已实现；e2e 断言预览、发送后 image、模型看到图片） |
 | B7 | 工具契约：`whiteboard_read_selection(canvasId, ids?, expectRev?)` → 翻译 + lossless JSON；`whiteboard_replace_selection(canvasId, expectRev, patches, inserts?)` → **原子写**：Host 内部自建/校验 claim、字段级合并、stale/conflict 检测，返回可读错误。模型不需要显式传 claimId。read 会为（session × canvas）记录短时效字段 basis 用于人类胜冲突检测，但不注册进公开 claim 表、不出现在 `/sync`。 | 生效（已实现；host smoke 覆盖） |
 | B8 | 模型汇报：工具描述要求模型改完用一句话汇报（“已把 o1 改成 #4A90D9”），对话里自然可读。 | 生效 |
-| B9 | 停止 = 真取消当前 turn（`remote.session.cancel({ sessionId })`）+ 放弃未提交 claim；已应用的修改保留、可撤销。v3 不覆盖原生停止 UI，原生「停止生成」按钮走的就是该 API；原子写保证停止时不会出现半截修改。AI 修改进入 undo 历史（Ctrl+Z 可撤），provenance toast 持续 8s 且带「撤销」按钮。 | 生效（spike 验证 cancel；e2e 验证 AI 修改→toast 撤销；原生停止按钮） |
+| B9 | 停止使用 DSH 原生的当前 turn 取消（`remote.session.cancel({ sessionId })`）；已完成的工具写入保留、可按变更撤销。v3 不覆盖原生停止 UI；单次工具写入原子提交，冲突字段可跳过而其他字段仍可提交；停止不会回滚此前完成的调用，整轮不是一个事务。AI 修改进入 undo 历史（Ctrl+Z 可撤），provenance toast 持续 8s 且带「撤销」按钮。 | 生效（spike 验证 cancel；e2e 验证 AI 修改→toast 撤销；原生停止按钮） |
 | B10 | 会话内容只有文字与图片：**不做** conversation 定义、turnTail 卡片、操作卡、系统消息注入、第二个聊天框、临时会话/浮窗/折叠卡/promote/队列、better-sidebar 依赖。 | 生效 |
 | B11 | 引用 chip 的插入使用 DSH 引用体系（`conversation.input.shell(sessionId)` 的 `insertReference`/`insertFileReferences` 或 `slash/input-insert-reference` 事件）；spike 验证；失败则降级为 typed `inputActions.insertText` 的**一行短标记**（`[画板选区 · N 个对象]`），交互不变。 | 生效（已实现；原生 chip 可用，未启用降级） |
 | B12 | 已发送消息里的引用渲染走 `uiConversation.userText.register(rule)`，显示为紧凑标签；规则失败时回退为可读原文。**规则必须匹配整块**（表头 + 连续对象行），只匹配表头会把对象行留在会话里。 | 生效（已实现；e2e 断言 `rawHeaderVisible=false`） |
@@ -55,11 +55,11 @@
 | C1 | 顺序：**spike（约 1 天，隔离 DSH_HOME + 独立端口）→ M1 实现 → 人因验收**；spike 不通过不开工正式代码。 | 生效 |
 | C2 | spike 退出标准：右栏 tab 注册/打开/keepMounted、默认宽度可用、composer chip 出现、引用 chip 插入与序列化、userText 渲染、图片附件、`replace_selection` 原子写与 stale 冲突、`remote.session.cancel`、模型视角调试面板可读。 | 完成（2026-11-04，11/11 通过、无降级；结论与截图见 [`evidence-v3/SPIKE-RESULT.md`](evidence-v3/SPIKE-RESULT.md)） |
 | C3 | M1 范围：拆 `conversation.view` 与画布内 AI 卡片 → 画板搬入右栏 → composer 引用 chip + 序列化 → 工具契约改造 → AI 开关（客户端 + Host）→ 撤销/状态/i18n → 移除死代码。 | 完成（2026-11-04，3.0.0；见 README / ACCEPTANCE-v3） |
-| C4 | 验收门槛：隔离 profile 冷启动、首 5 分钟人工走查、3 视口 × 缩放 × 明暗主题、真实 store 零写入、旧测试残留清理、更新 ADR/ACCEPTANCE/STATUS/README；最后用户重启 3080。 | 生效（自动化 + agent 实机自查已完成：含 1264×805 与 884×687 窄窗、跨 tab、刷新、停止、删除画板；用户抽验待确认） |
+| C4 | 验收门槛：隔离 profile 冷启动、首 5 分钟人工走查、3 视口 × 缩放 × 明暗主题、避免写入真实 store、旧测试残留清理、更新 ADR/ACCEPTANCE/STATUS/README；重启目标实例须用户授权。 | 历史记录（2026-11-04 的自动化与实机自查；当时用户抽验待确认）。真实 store 的有限元数据比较不能证明全部文件无写入 |
 | C5 | 版本：M1 完成后升 `3.0.0`；保留 v1 回滚脚本；数据无需迁移（canvas doc schema 不变，`session_pref` 加字段）。 | 完成（package.json = 3.0.0） |
 | C6 | 决策分级：成败级（S1/S2/S6、B2/B7/B10、C4）开工前冻结；权衡级按本表执行并允许分期；特性级（配色/动画/文案/浮窗细节）由实现按 v3 原型默认迭代。 | 生效 |
 | C7 | 原型 v4 不再单独做；「模型视角」做成插件内的 debug 面板（显示发给模型的序列化文本、工具调用与结果），供 spike/验收使用。 | 生效（spike 阶段实现并验证；M1 不随产品发布，模型视角由工具结果 + host smoke 覆盖） |
-| C8 | **实现期发现**：v2 e2e 直接在真实 `DSH_HOME` 上创建/删除会话，违反“真实 store 零写入”。v3 e2e 必须用独立 `DSH_HOME`（`<workspace>\.spike-e2e`，每次跑前清空），并在跑前/跑后对真实 store 的 sessions/whiteboard/workspace.json 做 size+mtime 快照比对，断言零差异。 | 生效（v3 e2e 已通过零写入断言） |
+| C8 | **实现期发现**：v2 e2e 曾在真实 `DSH_HOME` 上创建/删除会话。v3 e2e 使用仓库父目录的 `.spike-e2e/dsh-home`：默认启动前重建，`WB_E2E_KEEP_HOME=1` 除外；它前后只比较真实 store 部分目录条目及 `workspace.json` 的大小和时间戳，且会忽略读取错误。 | 历史结果的所选元数据无差异；不能证明所有文件未写入 |
 | C9 | **真实 GUI 自查（2026-11-04，用户授权 ego-browser 全权）**：在用户重启后的 3080 上用真实会话走查：dock 对齐实测 delta=0、引用插入→发送→紧凑标签渲染、AI 修改→`Ctrl+Z` 回退（rev 4→5）、AI 关→模型两次调用被 `ai_disabled` 拒绝、reload 后 tab/AI/消息 chip 恢复、原生停止生成、画板删除后回退默认画板。画板删除走原生 `window.confirm`（Playwright 验收时需先覆盖 `window.confirm=()=>true`，否则对话框会阻塞脚本）。自查产生的临时画板已删除、临时会话已归档；用户旧测试残留清理仍待确认。 | 完成 |
 
 ## 4. 已否决 / 被取代（不再讨论）

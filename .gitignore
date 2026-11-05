@@ -1,4 +1,16 @@
+CLAUDE.local.md
+.env
 node_modules/
+*.tsbuildinfo
+.pnpm-store/
+.pnpm-cache/
+.cache/
+.vscode/
+.idea/
+/.playwright-mcp/
+/.worktrees/
+/worktrees/
+.agents/worktrees/
 test/e2e/.artifacts/
 .spike-e2e/
 *.log

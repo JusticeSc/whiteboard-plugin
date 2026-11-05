@@ -1,0 +1,49 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Run plugin smoke checks
+        run: npm test
+      - name: Check Host entry syntax
+        run: node --check index.js
+      # The isolated browser/model check is intentionally opt-in: it requires a
+      # DSH installation, Chrome, credentials, and a private DSH_HOME.
+  install-rollback-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Verify disposable install and rollback isolation
+        run: node test/install-rollback-isolation.mjs
+  all-checks-passed:
+    if: always()
+    needs: [checks, install-rollback-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULT: ${{ needs.checks.result }}
+          WINDOWS_RESULT: ${{ needs.install-rollback-windows.result }}
+        run: test "$RESULT" = success && test "$WINDOWS_RESULT" = success

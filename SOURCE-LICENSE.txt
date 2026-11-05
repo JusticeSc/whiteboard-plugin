@@ -1,0 +1,38 @@
+Source provenance and license
+================================
+
+This notice applies to governance-template material adapted from DeepSeek Harness that may remain in this repository. It does not describe the `@local/whiteboard` product source, package model, or active tooling. The plugin's license is stated separately in `LICENSE`.
+
+  Source:  https://github.com/deepseek-ai/deepseek-harness
+  License: MIT, Copyright (c) 2026 DeepSeek
+  Import:  recorded as a working-tree snapshot dated 2026-11-01
+  Audited upstream reference: fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159
+  Reference URL: https://github.com/deepseek-ai/deepseek-harness/tree/fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159
+  License URL: https://github.com/deepseek-ai/deepseek-harness/blob/fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159/LICENSE
+  Verification date: 2026-11-05
+
+The upstream repository and MIT notice at the audited reference were verified through GitHub. The reference is a comparison point, not an assertion that it was the original import commit. The exact original commit and the recorded snapshot date remain unverified; adapted local files need not be byte-identical to that reference. The license text below matches both that upstream notice and the locally installed DSH package notice.
+
+Where copied or modified portions of that source remain, they are distributed under the same MIT terms reproduced below. No additional copyright is claimed for modifications to that governance material. Third-party dependencies remain under their own licenses.
+
+MIT License
+
+Copyright (c) 2026 DeepSeek
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -1,8 +1,8 @@
 # Phase B/C 实施规格（Canvas v2 客户端）
 
-状态：**数据层部分生效（2026-11-03）；承载面部分已被取代（2026-11-04，ADR-0003）**。
-实现依据 ADR-0002：**画板=独立文档，会话=操作者**；本文件只补实现层契约，不重复 ADR 的 20 条决策。
-工具契约与 AI 入口见 [ADR-0003](adr/0003-canvas-agent-bridge.md)；决策总表见 [DECISIONS.md](DECISIONS.md)。
+状态：**Canvas v2 实施规格的历史记录**（2026-11-03）。
+
+> **v3 适用范围**：Host 权威、版本和字段级合并仍适用；下文的显式 claim 流程、按 AI 轮次提交或撤销、以及旧承载面描述不是当前 v3 工具契约。v3 每次有效写入单独提交并可按该变更撤销；一次轮次中的多次调用不合并。当前工具和承载见 [ADR-0003](adr/0003-canvas-agent-bridge.md)、[DECISIONS.md](DECISIONS.md) 与 [项目上下文](PROJECT-CONTEXT.md)。
 
 ## 0. 显示层解耦原则
 

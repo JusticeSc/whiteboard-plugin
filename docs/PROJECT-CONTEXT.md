@@ -2,12 +2,12 @@
 
 > 面向接手者/发布审阅者。目标：不依赖会话历史，读完这份 + 链接文档即可知道
 > 当前产品是什么、代码怎么组织、哪些承诺不能破、如何验证、还差什么才能发布。
-> 更新时间：2026-11-04（Asia/Shanghai）。
+> 原始记录：2026-11-04（Asia/Shanghai）；当前环境与验证结果须另行核实。
 
 ## 1. 一句话
 
 一个常驻 DSH Web 右侧栏的手绘画板：选中对象后通过**主输入框的原生引用 chip**把
-选区交给同一个对话里的模型；模型通过 Host 工具**原子读写**画板，支持撤销、停止、
+选区交给同一个对话里的模型；模型通过 Host 工具读画板并逐次原子写入，支持撤销、停止、
 按（画板 × 会话）AI 开关。它不创建会话、不自定义消息节点、不做第二输入框。
 
 ## 2. 当前状态
@@ -15,11 +15,11 @@
 | 项 | 值 |
 |---|---|
 | 包名 / 版本 | `@local/whiteboard` / `3.0.0` |
-| 运行环境 | DSH Web `@deepseek-ai/dsh` `0.2.1-rc.5`，真实 3080 |
-| profile 链接 | `%USERPROFILE%\.dsh\profiles\web\node_modules\@local\whiteboard` → 本目录（Junction） |
-| 自动化 | Host 216 checks / 客户端 105 checks / 隔离 e2e **E2E V3 OK** |
-| 实机审查 | 已完成多轮（对齐、历史消息、文字选区、品牌色），见 `evidence-v3/` |
-| 发布状态 | **已发布到 GitHub（public，MIT，`v3.0.0` tag + Release）** |
+| 历史验证环境 | DSH Web `@deepseek-ai/dsh` `0.2.1-rc.5`；2026-11-04 的实机审查使用端口 3080，不代表当前实例状态 |
+| 历史安装方式 | profile 的 `node_modules\@local\whiteboard` junction 指向源码目录；使用前须核对当前 profile 和链接目标 |
+| 历史自动化结果 | Host 216 checks / 客户端 105 checks / 隔离 e2e **E2E V3 OK**，不代表当前运行结果 |
+| 历史实机审查 | 对齐、历史消息、文字选区、品牌色，见 `evidence-v3/` |
+| 发布记录 | 2026-11-04 的 GitHub、MIT 与 `v3.0.0` tag / Release 记录见 `RELEASE-v3.0.0.md`；当前远端状态未由本文核验 |
 
 版本策略：首次发布保持 `3.0.0`，包含验收后修复；发布后的 bugfix 升 `3.0.x`，
 功能升级升 `3.x`/`4.0`（见 `DECISIONS.md` R3）。
@@ -33,7 +33,7 @@
   原生引用 chip → 补指令发送；聊天记录显示 chip + 指令，不泄漏序列化原文。
 - **模型读取**：≤20 对象带完整字段；>20 只带摘要并提示先读；可附选区快照图片。
 - **模型写入**：`whiteboard_read_selection` / `whiteboard_replace_selection`，
-  `expectRev` 原子写、字段级人类优先、可读冲突、单步撤销。
+  `expectRev` 逐调用原子写、字段级人类优先、可读冲突；每个有效变更可分别撤销。
 - **AI 开关**：按“画板 × 会话”，客户端收起入口 + Host 拒绝（`ai_disabled`）。
 - **原生集成**：右侧栏 tab（keepMounted）、主输入框 dock、引用 chip、
   发送消息渲染、停止生成、主题 token、刷新/重启持久化。
@@ -81,9 +81,9 @@
 4. **会话只保留文字/图片**：没有自定义 conversation view、AI 卡片、临时会话、
    系统消息注入。
 5. **引用不可编辑**：引用是原生 chip；用户指令才可编辑。
-6. **写入原子且可撤销**：一次工具调用 = 一个 rev + 一个撤销步骤。
+6. **写入原子且可撤销**：每次有效工具调用产生一个变更和一个修订，可按该次变更撤销；没有有效修改时不产生变更。冲突字段可跳过而非冲突字段仍可提交；撤销也会跳过之后被更改的字段或对象。同一轮的多次调用不合并为一个撤销步骤。
 7. **AI 不能删除用户对象**：工具没有删除操作；删除由用户执行。
-8. **真实 store 零写入（自动化验收）**：e2e 使用隔离 `DSH_HOME`，前后快照比对。
+8. **测试隔离**：e2e 应使用隔离 `DSH_HOME`。脚本仅比较真实 store 的部分目录条目与 `workspace.json` 的大小和时间戳；该检查不能证明所有文件均无写入。
 
 ## 6. 工具契约
 
@@ -107,42 +107,49 @@
 | `index.js` | Host 入口：注入 storage/tools，挂 `/api/whiteboard/v2`，注册两个工具 |
 | `host/constants.js` | LIMITS、可编辑字段、调色板、存储单元描述符 |
 | `host/model.js` | CanvasDoc 纯模型、sanitize/normalize、hex→调色板、快照序列化 |
-| `host/claims.js` | 内存 claim 表（兼容保留；v3 原子写内部使用） |
+| `host/claims.js` | 公共 claim 表及暂存逻辑；v3 原子写复用暂存方法但不注册公开 claim |
 | `host/store.js` | storage hub：canvas / session_pref / global |
 | `host/engine.js` | 单写入者：默认画板、幂等 op、模型读/写、session_pref 合并 |
 | `host/routes.js` | HTTP：画板 CRUD、sync、import/export、health、session-pref |
 | `host/tools.js` | 两个模型工具的 schema/execute/render |
 | `client.js` | 浏览器端：Canvas 纯函数 + 画板 UI + 右侧栏 tab + dock/chip 桥接 |
 | `cordis.patch.yml` | 作为 DSH bundle 安装时插入 `whiteboard` 条目 |
-| `scripts/install-v3.ps1` | 把 profile 链接指向本目录（重启生效） |
-| `scripts/rollback-v1.ps1` | 把 profile 链接指回 v1 |
-| `scripts/spike-env.ps1` | 隔离 DSH_HOME + 独立端口手工复现环境 |
+| `scripts/install-v3.ps1` | 修改指定用户 profile 的链接与已有匹配 `link:` 依赖 |
+| `scripts/rollback-v1.ps1` | 将指定用户 profile 的链接与已有匹配 `link:` 依赖指回 v1 |
+| `scripts/spike-env.ps1` | 旧手工复现脚本；使用前须核对 home、端口和进程，见下文 |
 
 ## 8. 验证方式
 
 ```powershell
 cd <path-to>\whiteboard-plugin
-npm test                 # 216 + 105 checks
-node test/e2e/v3.mjs     # 隔离 DSH_HOME + 端口 3092，真实 Chrome/模型，约 3–5 分钟
+npm test                 # Host + client smoke
+npm run test:e2e         # 可选：真实 Chrome/模型；先检查下方隔离及凭据注意事项
+node --check index.js    # 入口改动时的定向语法检查
 ```
+
+运行 e2e 前，先确认 `../.spike-e2e/dsh-home` 的删除/保留策略、权限、凭据复制、父目录的忽略规则和事后清理；该目录不是本仓库 `.gitignore` 覆盖范围。详见 [e2e 说明](../test/e2e/README.md)。
+
+旧的 `scripts/spike-env.ps1` 不是安全替代：它可覆盖 `DshHome`，会强制停止 PID 文件所指进程及所选端口的监听进程，并把凭据复制到仓库父目录。使用前须核对路径、端口、PID、敏感输出与清理计划。
 
 - 单测覆盖：Host 模型/CRUD/工具/claim/冲突/撤销；客户端纯函数、注册面、
   引用规则、文本测量、色板。
 - e2e 覆盖：右栏 tab、keepMounted、画图、dock 对齐（默认/宽栏/窄窗）、
   原生 chip、发送渲染 + 指令保留、AI 开关持久化、快照、模型改画板 + 撤销、
-  AI 关拒绝、删除 chip 后重插、刷新恢复、零真实 store 写入、0 page/console error。
+  AI 关拒绝、删除 chip 后重插、刷新恢复；脚本还断言页面与控制台错误为空，并比较真实 store 的所选元数据。
 - 实机证据：`docs/evidence-v3/`（`SPIKE-RESULT.md`、`v3-result.json`、隔离 e2e
-  截图 `v3-*.png` 进入仓库且已裁掉左侧会话栏/头像；真实会话截图 `live-*.png` 因含
-  真实对话上下文，已由 `.gitignore` 排除、只在本机保留，见 `docs/evidence-v3/README.md`）。
+  截图 `v3-*.png`；真实会话截图 `live-*.png` 因含
+  真实对话上下文，应只在本机保留，见 `docs/evidence-v3/README.md`；这些是历史证据，不代表本次已验证）。
 
 ## 9. 安装 / 回滚
 
+以下脚本直接使用 `$env:USERPROFILE\.dsh\profiles\web`，不以 `DSH_HOME` 选目标。仅在用户明确授权后运行：先确认 profile 和链接目标、待替换路径确实是 junction，并备份 profile 的链接信息和 `package.json`。回滚还须确认兄弟目录 `whiteboard-plugin-v1` 存在且兼容。
+
 - 安装/切换：`powershell -ExecutionPolicy Bypass -File scripts\install-v3.ps1`
-  然后重启 3080（会结束当前会话）。
+  指向本源码目录。
 - 回滚：`powershell -ExecutionPolicy Bypass -File scripts\rollback-v1.ps1`
-  把链接指回 `..\whiteboard-plugin-v1`，重启生效。
-- 两个脚本只改 profile 的 junction，不删旧目录、不动运行中的 3080。
-- client 改动刷新页面即生效；Host 改动需要重启 `dsh web`。
+  指向 `..\whiteboard-plugin-v1`。
+- 两个脚本替换 junction，并在 profile `package.json` 中更新已有的匹配 `@local/whiteboard` `link:` 依赖；不会凭空新增缺失的依赖。脚本不自行重启 DSH；若后续步骤失败，可能已留下部分切换。
+- 刷新或重启需求取决于 DSH 的实际构建与加载方式，不应假定刷新一定足够；重启会结束当前会话，须事先取得用户授权。
 
 ## 10. 已知限制（不是缺陷）
 
@@ -165,12 +172,12 @@ node test/e2e/v3.mjs     # 隔离 DSH_HOME + 端口 3092，真实 Chrome/模型�
 
 详见 [`ROADMAP-v4.md`](ROADMAP-v4.md)，决策见 [`DECISIONS.md`](DECISIONS.md) §6。
 
-## 12. 发布状态（详见 RELEASE）
+## 12. 发布与分发（历史记录见 RELEASE）
 
-- 发布形态：**GitHub public 源码仓库 + DSH bundle 安装**：<https://github.com/JusticeSc/whiteboard-plugin>。
+- 计划分发形态：GitHub 源码仓库 + DSH bundle 安装：<https://github.com/JusticeSc/whiteboard-plugin>。远端可见性与发布状态须另行核实。
 - 包名：保留 `@local/whiteboard`、`"private": true`；**不发布 npm**（DSH 从源码目录安装 bundle）。
 - 许可证：**MIT**（`LICENSE` + `package.json` 已同步）。
-- 仓库：`main` + `v3.0.0` tag 已推送；[Release v3.0.0](https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0) 已建。
-- 兼容性：`engines.dsh: >=0.2.1-rc.5 <0.3.0`，实测 DSH `0.2.1-rc.5`。
-- 安装元数据：`dsh.bundle.patch` + `locale/en|zh.json`（title/description）+ `icon.svg`；Plugin Manager 可读。
-- 真实 store 旧测试残留已于 2026-11-04 清理（会话/画板/元素/pref；备份在 `_cleanup-backup/`）。
+- 历史记录称 `main` 与 `v3.0.0` tag 已推送并创建 [Release v3.0.0](https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0)；本文不代表当前远端状态已验证。
+- 兼容性：声明的 `engines.dsh` 为 `>=0.2.1-rc.5 <0.3.0`；DSH `0.2.1-rc.5` 的实测是历史记录。
+- 安装元数据：`dsh.bundle.patch` + `locale/en|zh.json`（title/description）+ `icon.svg`；Plugin Manager 的可用性须在目标实例确认。
+- 历史记录称真实 store 的旧测试残留已于 2026-11-04 清理，并曾写入 `_cleanup-backup/`；备份的当前状态未经核验，若仍存在须按敏感数据处理。

@@ -1,183 +1,194 @@
-# 画板 v3（`@local/whiteboard` 3.0.0）
+# DSH 画板（`@local/whiteboard`）
 
-**v3 已实现**：画板常驻 DSH 原生右侧栏；选中对象后，主输入框上方出现引用 chip，
-点一下把选区作为**原生引用**放进正常输入框；模型用 `whiteboard_read_selection` /
-`whiteboard_replace_selection` 读写画板。会话里只有文字与图片——没有第二输入框、
-没有临时会话、没有自定义会话卡片、没有 `conversation.view`。
+## 概览
 
-决策见 [`docs/DECISIONS.md`](docs/DECISIONS.md)，架构见
-[`docs/adr/0003-canvas-agent-bridge.md`](docs/adr/0003-canvas-agent-bridge.md)，
-验收见 [`docs/ACCEPTANCE-v3.md`](docs/ACCEPTANCE-v3.md)。
-v1（`../whiteboard-plugin-v1`）原样保留，回滚只需把 profile 链接指回它并重启。
+在 DeepSeek Harness（DSH）的原生右侧栏绘图，再把选区作为原生引用 chip 放入主输入框，让同一会话里的模型读取或修改画板。画板数据由 Host 持久化，模型修改支持版本检查、字段级人类优先和撤销。会话继续使用正常的文字与图片消息，不创建第二输入框、临时会话、自定义会话卡片或 `conversation.view`。
 
-> **发布/交接入口**：[项目上下文](docs/PROJECT-CONTEXT.md) ·
-> [发布说明与检查清单](docs/RELEASE-v3.0.0.md) ·
-> [下一阶段路线（canvas-first）](docs/ROADMAP-v4.md) ·
-> [文档索引](docs/INDEX.md) · [CHANGELOG](CHANGELOG.md)。
-> 当前版本 `3.0.0`；已发布到 GitHub：[JusticeSc/whiteboard-plugin](https://github.com/JusticeSc/whiteboard-plugin)
-> （MIT，tag `v3.0.0`，[Release](https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0) 已建）。
+| 项目 | 说明 |
+|---|---|
+| 当前版本 | `3.0.0` |
+| DSH 兼容范围 | `>=0.2.1-rc.5 <0.3.0`；已有实测记录针对 `0.2.1-rc.5` |
+| 分发方式 | [GitHub 源码](https://github.com/JusticeSc/whiteboard-plugin) + DSH bundle；保持 `private: true`，不发布 npm |
+| 版本记录 | [Release v3.0.0](https://github.com/JusticeSc/whiteboard-plugin/releases/tag/v3.0.0) · [CHANGELOG](<CHANGELOG.md>) |
 
-> **2026-11-04 实机修复**：① 主输入框上方的引用 chip 现在与输入框卡片左缘对齐——窄栏跟随 16px
-> 内缩，宽栏（右栏收起/大窗口）跟随居中卡片（`max-width: var(--dsh-composer-card-max-width)`）的
-> 实际内缩，由 dock 动态测量 + ResizeObserver 保持；② 聊天记录里的用户消息不再只剩引用 chip——
-> 发送消息渲染规则只匹配引用块、把行尾输入指令留给文本节点，历史消息刷新后也会显示「chip + 指令」；
-> ③ 文字对象内容被模型改写后，选中框/命中/框选按当前文字实时测量，不再沿用旧文字的宽度；
-> ④ 「品牌色」改用主题的 business-primary 品牌蓝（亮色 #4176e6 / 暗色跟随主题），不再和墨色一样是近黑色。
-> 刷新 3080 页面即加载新 client，无需重启。证据见 [`docs/evidence-v3/`](docs/evidence-v3/) 的
-> `live-before/after-alignment.png`、`live-wide-column.png`、`live-instruction.png`、
-> `live-text-selection.png`、`live-brand-swatch.png`、`v3-05-sent.png`。
+## 导航
 
-## 两块 + 一个薄承载
+- [功能与用法](#功能与用法)
+- [安装与回滚](#安装与回滚)
+- [数据与 AI 安全](#数据与-ai-安全)
+- [开发与验证](#开发与验证)
+- [架构与目录](#架构与目录)
+- [文档与后续方向](#文档与后续方向)
+- [限制与已知问题](#限制与已知问题)
+- [许可证](#许可证)
 
-**画板本体**（沿用 v2 数据层）：Host 权威文档 `{id, name, rev, elements, changes}`，
-元素级 `rev`/`fieldRevs`，字段级合并（人类胜），append-only 历史，人类按操作撤销、
-AI 按轮撤销；每个会话记住自己的 `lastCanvasId`，可切换/新建/重命名/删除画板。
+## 功能与用法
 
-**桥接**（v3 新增）：
+安装并启用 bundle 后，画板与当前会话的主输入框配合使用，不需要另开 AI 对话。
 
-1. 画板 tab 把「当前画板 + 非笔迹选区」发布到按会话隔离的桥接 store；
-2. 主输入框上方出现 dock chip：「◈ 画板选区 · N 个对象」；
-3. 点击 → `sessions.scope(id).get('conversation').input.for(scope)` 拿到输入框 shell（可选「附带选区快照」开启时，同时把选区渲染成 PNG 走 `conversation.createDrafts` + `addAttachments` 进草稿），
-   `captureInsertion()` + `insertReference()` 插入**原生 chip**（失败则降级为 typed 短标记）；
-4. 发送时 `inputTriggers` 的 `codec.serialize` 把引用翻译成模型可读文本：
-   `【画板选区引用】<画板名> · N 个对象 · rev R · canvasId <id>` + 每对象一行
-   （id/类型/位置/尺寸/颜色（hex+调色板名）/文本或端点；>20 个对象改为摘要 + 要求模型先 `read_selection`）；
-5. `uiConversation.userText.register` 的规则把**整块**（表头 + 连续对象行）在已发送消息里
-   渲染成一个紧凑 chip `◈ 画板选区 · N 个对象`；
-6. 模型工具：`whiteboard_read_selection`（读翻译 + lossless JSON）与
-   `whiteboard_replace_selection`（`expectRev` 原子写，patch/inserts，字段级人类胜冲突，`ai_disabled` 拒绝）。
+| 能力 | 用法 |
+|---|---|
+| 手绘与编辑 | 选择、抓手、画笔、矩形、椭圆、箭头、文字和橡皮；支持框选、拖动、撤销、重做、清空、缩放与适配 |
+| 多画板 | 新建、切换、重命名、删除；每个会话记住最后打开的画板 |
+| 导入与导出 | JSON 导入 / 导出、PNG 导出 |
+| AI 协作 | 插入选区引用，可选附带选区 PNG；模型通过 Host 工具读写，修改可撤销 |
 
-**AI 开关**：画板头栏的「AI」按钮，粒度 =（画板 × 会话），默认开；关闭后入口收起，Host
-对两个工具都返回 `ai_disabled`（关闭 = 不读不改）；状态存 Host `session_pref.aiByCanvas`，刷新仍在。
+### 在 GUI 里使用（v3）
 
-**可选快照**：画板头栏的图像按钮（默认关）开启后，插入引用时会把当前选区（不含笔迹）渲染成一张
-PNG 作为原生图片附件加入同一草稿；会话里同时出现引用 chip 与图片，模型两者都能看到。
+1. 打开或新建会话，展开右侧栏；在空侧栏引导页点击「画板」。画板 tab 常驻，切换会话或 tab 不会因为卸载而丢掉画布。
+2. 使用工具栏绘图，或从左上画板下拉菜单管理画板。
+3. 用「选择」选中非笔迹对象，点击主输入框上方的「◈ 画板选区 · N 个对象」，把选区插入为原生引用。
+4. 在正常输入框补充指令后发送，例如“把选中的两个矩形改成蓝色”。聊天记录显示紧凑引用 chip 与用户指令，模型可按指令读取或修改画板。
+5. 需要图像上下文时，开启画板头栏的「附带选区快照」，再插入引用；选区 PNG 会作为原生图片附件加入同一草稿。该选项默认关闭。
 
-## 目录
+不希望当前会话的模型接触某张画板时，关闭画板头栏的「AI」开关。它按“画板 × 会话”生效，具体规则见[数据与 AI 安全](#数据与-ai-安全)。
 
-```
-index.js                     Host 入口：注入 tools + storage，挂 /api/whiteboard/v2，注册两个 v3 工具
-host/constants.js            限制、枚举、存储单元描述符
-host/model.js                CanvasDoc 纯模型 + sanitize/normalize + hex→调色板颜色归一化
-host/claims.js               内存 claim 表（v2 兼容保留；v3 原子写内部使用）
-host/store.js                storage hub 持久化：canvas / session_pref / global
-host/engine.js               单写入者：默认画板、幂等 /op、模型读/写选区、session_pref 合并
-host/routes.js               HTTP 面（画板 CRUD、导出、导入、健康检查、session-pref）
-host/tools.js                模型工具 v3（无 claimId；read 翻译；replace 原子写 + AI 开关）
-client.js                    浏览器端：Canvas 纯函数 + WhiteboardPage + 右侧栏 tab + 引用 chip 桥接
-test/smoke.mjs               Host 单测/冒烟（216 项）
-test/client-smoke.mjs        客户端纯逻辑 + 注册面（105 项）
-test/e2e/v3.mjs              隔离 DSH_HOME 的真实 Chrome/模型端到端（不写真实 store）
-test/e2e/install-rollback.mjs 安装/回滚探针（隔离 throwaway host）
-cordis.patch.yml             安装为 bundle 时插入 id `whiteboard` / name `@local/whiteboard`
-docs/ACCEPTANCE-v3.md        v3 人工验收清单（用户执行）
-docs/ACCEPTANCE.md           v2 历史验收（已被 ADR-0003 取代）
-docs/PROJECT-CONTEXT.md      一页式项目上下文（接手/发布必读）
-docs/INDEX.md                文档索引（权威/历史/证据）
-docs/RELEASE-v3.0.0.md       发布说明、发布前决策与检查清单
-docs/ROADMAP-v4.md           下一阶段 canvas-first / 自动画图路线
-docs/DECISIONS.md            v3 决策总表（唯一权威）
-CHANGELOG.md                 版本变更记录
-docs/adr/0003-canvas-agent-bridge.md   v3 架构：右侧栏承载 + 选区引用桥接
-docs/evidence-v3/            P0 spike 结论/截图 + v3 e2e 结果/截图
-scripts/install-v3.ps1       把 profile 的 @local/whiteboard 指向本目录（重启后生效）
-scripts/rollback-v1.ps1      把 profile 指回 ../whiteboard-plugin-v1（一步回滚）
-scripts/spike-env.ps1        隔离 DSH_HOME + 端口起 dsh web（手工排查/复现 e2e 环境）
-```
+<a id="安装dsh-bundle无需-npm"></a>
 
-## 测试
+## 安装与回滚
 
-```powershell
-cd <path-to>\whiteboard-plugin
-npm test                      # = node test/smoke.mjs && node test/client-smoke.mjs
-# 期望：216 checks passed / SMOKE OK；105 checks passed / CLIENT SMOKE OK
-```
+这是 DSH bundle，不是独立网页或普通 npm 库。安装前确认 DSH 版本符合上表范围；bundle 补丁、导出和兼容声明分别由 [Cordis 补丁](<cordis.patch.yml>)与[包清单](<package.json>)定义，Plugin Manager 的展示信息来自 [locale](<locale/>) 与[图标](<icon.svg>)。
 
-端到端（隔离，不碰 3080、不写真实 `DSH_HOME`）：
-
-```powershell
-cd <path-to>\whiteboard-plugin
-node test/e2e/v3.mjs
-# 自起隔离 DSH_HOME（<workspace>\.spike-e2e，每次跑前清空）+ 端口 3092，
-# 真实 Chrome，4 个真实模型回合（引用 / 快照 / 模型改画板+撤销 / AI 关拒绝）；结束时对比真实 store 快照（零写入）。
-# 期望输出：E2E V3 OK（exit 0）
-```
-
-e2e 覆盖：新建会话 → 从右栏引导页打开「画板」→ 断言右栏只有一个画板根、无旧
-`conversation.view` → 画两个矩形并在 Host 侧确认 2 个元素 → 框选 → dock chip（断言 chip 与输入框左缘对齐）→
-插入原生 chip → 发送并确认「模型回复 + 会话里整块渲染为 chip、无原文泄漏」→
-切到文件 tab 再切回画板（断言 keepMounted 且选区与画布仍在）→
-AI 开关关闭/开启（断言按钮状态、dock 隐藏/恢复、`/session-pref` 写入与读回）→
-模型 `whiteboard_replace_selection` 把两个矩形改成蓝色（断言 rev、颜色、provenance toast）→ 点 toast「撤销」回退（断言颜色恢复）→
-关闭 AI 开关后让模型改画板（断言 Host 拒绝、画布颜色与 rev 不变）→ 重新开启 AI → 
-删除输入框里的引用 chip（断言 dock 在 400ms 内重新可插入，再插一次仍只有 1 个 chip）→
-刷新页面（断言画板 tab 仍挂载可见、画布重挂载、AI 开关保持开启、历史消息里的引用 chip 仍正常渲染）→
-快照开关开启 → 插入引用 → 草稿出现图片预览 → 发送后消息里同时有 image 与引用 chip →
-缩到 900×700 窄窗（断言 dock 仍对齐、画板工具栏换行无横向溢出）→
-真实 store 零写入 → 0 pageerror/console error。
-
-## 安装（DSH bundle，无需 npm）
-
-DSH 的插件分发单位是 **bundle 包**，不是 npm 上的普通库：
-
-- `package.json` 声明 `dsh.bundle.patch`，`cordis.patch.yml` 负责把插件行插入 profile；
-- DSH 启动时按 profile 的 bundles 顺序加载，`engines.dsh` 不满足会在安装/启动时拒绝；
-- Plugin Manager 读取包里的 `locale/*.json` 的 `meta.title` / `meta.description` 和 `./icon` 作为展示信息；
-- 因此**不需要 `npm publish`**：直接从 GitHub 源码安装即可。npm 只决定分发渠道，不是 DSH 插件的运行要求。
-
-**方式 A：从 GitHub 源码安装（推荐给使用者）**
+### 从 GitHub 源码安装
 
 ```powershell
 git clone https://github.com/JusticeSc/whiteboard-plugin.git
-# 在 DSH Web 的「插件」页 / agent 的 plugin_manager 中选择安装 bundle，
-# 目标用克隆目录的绝对路径；安装后启用 whiteboard bundle。
 ```
 
-DSH 内部的 Plugin Manager 会用 pnpm 把这个目录接入当前 profile，但不会去 npm 发布或下载本项目。
-首次安装/替换 Host JavaScript 后按 DSH 提示重启 `dsh web`；仅 client 更新刷新页面即可。
+1. 在 DSH Web 的「插件」页或 agent 的 `plugin_manager` 中安装 bundle，目标使用克隆目录的绝对路径。
+2. 启用 whiteboard bundle，并按 DSH 提示重启 `dsh web`。
+3. 重新打开会话右侧栏，确认出现「画板」入口。
 
-**方式 B：本地开发目录直连（当前工作区，仅开发）**
+Plugin Manager 会把源码目录接入当前 profile；本项目无需执行 `npm publish`。首次安装或替换 Host JavaScript 后需要重启，不能仅靠刷新页面生效；客户端更新则以宿主的加载与刷新提示为准，不假定自动构建或热更新已运行。
+
+### 本地开发目录直连（Windows）
+
+[安装脚本](<scripts/install-v3.ps1>)是当前工作区的开发捷径，固定操作 `%USERPROFILE%\.dsh\profiles\web`。执行前确认该 profile 是目标环境，并备份其配置与当前插件链接。
 
 ```powershell
 cd <path-to>\whiteboard-plugin
 powershell -ExecutionPolicy Bypass -File scripts\install-v3.ps1
-# 确认输出 "installed @local/whiteboard -> ...whiteboard-plugin"
-# 然后由用户停掉旧 dsh web 进程并重新启动（会结束当前会话）
 ```
 
-**回滚（一步）**
+脚本会替换 profile 的 `node_modules/@local/whiteboard` junction；若 profile 清单里已有匹配的 `@local/whiteboard: link:...` 依赖，还会同步修改该依赖路径。它不删除旧源码目录，也不停止或重启运行中的 DSH。看到 `installed @local/whiteboard -> ...` 后，由用户安排重启；停止当前 `dsh web` 会结束当前会话。
+
+### 回滚到 v1
+
+[回滚脚本](<scripts/rollback-v1.ps1>)依赖同级 `../whiteboard-plugin-v1` 目录及其中的包清单已存在。它把 junction 和匹配的 `link:` 依赖路径指回 v1，重启后生效。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\rollback-v1.ps1
-# 把 profile 链接指回 ..\whiteboard-plugin-v1，重启 3080 即回到 v1
 ```
 
-脚本只改 profile 的 `node_modules/@local/whiteboard` 链接（junction），不删 v1 目录、
-不动 3080 进程；脚本幂等，可反复执行。脚本里的目录直连只是本地开发捷径，公开安装请走方式 A。
+这里的回滚是切换插件源码，不是数据迁移或备份恢复。公开安装使用前述 bundle 流程，不要把本地目录直连脚本当成通用安装器。
 
-## 在 GUI 里使用（v3）
+## 数据与 AI 安全
 
-1. 打开/新建会话，展开右侧栏；空右栏的引导页点「画板」（之后右栏 tab 会保留，切会话/切 tab 不丢）。
-2. 画板：工具（选择/抓手/画笔/矩形/圆/箭头/文字）、颜色、撤销/重做/清空、缩放/适配、
-   JSON 导入/导出、PNG 导出；左上画板下拉可新建/重命名/删除/切换（每个会话记住最后一张）。
-3. 用「选择」框选对象 → 输入框上方出现「◈ 画板选区 · N 个对象」→ 点击插入引用 →
-   在正常输入框里补一句话后发送。会话里显示为一个紧凑引用 chip；模型可读/改画板。
-4. 画板头栏「AI」开关按（画板 × 会话）生效；关闭后不能再交给该会话的 AI。旁边的图像按钮是
-   「附带选区快照」（默认关）：开启后插入引用会同时附一张选区图片（会话里是一条 image）。
-5. 数据在 Host，刷新/重开浏览器后仍在；不依赖 localStorage。
+画板的持久化与写入判定都在 Host；客户端负责交互和选区引用，不依赖 `localStorage` 保存当前画板。
+
+- **数据与撤销**：沿用 v2 的画板文档，保留操作历史；人类按操作撤销，AI 修改按工具调用单步撤销。刷新或重开浏览器后，Host 中的画板与会话偏好仍在。
+- **画板与会话**：会话通过 `lastCanvasId` 记住最后打开的画板；新会话未切换或新建画板时使用 Host 默认画板，因此默认画板跨会话共享，并非每会话独占。
+- **AI 开关**：默认开启，状态存入 Host 的 `session_pref.aiByCanvas`。关闭后客户端收起引用入口，Host 对两个模型工具均返回 `ai_disabled`，即不读也不改；刷新后仍保持该设置。
+- **快照与隐私**：开启快照后，选区图片会随正常消息提供给模型；关闭后不再附图。快照开关只保留在当前页面挂载态，不持久化。笔迹不进入选区引用或快照。
+
+### 模型如何读写画板
+
+选区引用发送时会转换为模型可读文本，表头形如 `【画板选区引用】<画板名> · N 个对象 · rev R · canvasId <id>`。不超过 20 个对象时带逐对象字段；超过 20 个时仅带摘要，并提示模型先读取。聊天记录把引用块渲染为紧凑 chip，用户指令仍作为正常文字保留；原生引用插入失败时会降级为 typed 短标记。
+
+| 工具 | 行为与边界 |
+|---|---|
+| `whiteboard_read_selection` | 返回中文翻译与无损 JSON；可按 ID 读取选区，省略 ID 时读取整板非笔迹对象，受规模上限约束 |
+| `whiteboard_replace_selection` | 使用刚读取的 `expectRev` 原子应用字段修改或插入；有效修改一次提交，增加一个画板版本，并可单步撤销 |
+
+版本过期会返回 `stale_revision`，需要重新读取；字段级冲突保留人类的最新编辑，并报告 `conflicts`。模型不能改变对象 ID / 类型或删除用户对象，也不能写入笔迹。其他失败包括 `canvas_not_found`、`invalid_proposal`、`too_large` 和 `ai_disabled`；参数与返回值以[工具定义](<host/tools.js>)为准。
+
+## 开发与验证
+
+本仓库是根目录 JavaScript/ESM 插件，没有 TypeScript workspace 或独立构建步骤。先运行不依赖浏览器的检查，再按环境条件选择端到端验证。
+
+### 测试
+
+```powershell
+cd <path-to>\whiteboard-plugin
+npm test
+node --check index.js
+```
+
+`npm test` 运行 Host 与客户端冒烟套件，目前分别为 216 和 105 项；通过时输出 `SMOKE OK` 与 `CLIENT SMOKE OK`。覆盖模型、持久化、冲突、撤销、HTTP、客户端桥接和注册逻辑，但不能替代真实 UI / 模型验证。
+
+### 可选端到端验证
+
+需要本地 DSH、Chrome、可用模型凭据及隔离环境。**执行前先检查测试目录的权限、现有内容、忽略规则和清理方式**：[v3 测试脚本](<test/e2e/v3.mjs>)使用仓库父目录的 `../.spike-e2e/dsh-home`，默认在启动时清空并重建该 home；`WB_E2E_KEEP_HOME=1` 可跳过重置。它会复制凭据，运行后保留该 home，本仓库的忽略规则不覆盖父目录。
+
+```powershell
+npm run test:e2e
+```
+
+脚本默认使用独立端口 3092，覆盖真实侧栏、引用、快照、模型修改与撤销、AI 关闭拒绝、刷新和窄窗，并比较真实 store 的所选大小/时间戳元数据（非全盘字节证明）；成功标记为 `E2E V3 OK`。前置条件缺失或未执行不等于通过。[合成安装 / 回滚检查](<test/e2e/install-rollback.mjs>)在临时 fixture 中验证脚本切换，不证明历史 v1 的运行兼容性。详细要求见[测试策略](<docs/testing.zh.md>)。
+
+### 治理与贡献
+
+提交前阅读[贡献指南](<CONTRIBUTING.zh.md>)与 [Agent 指令](<AGENTS.md>)；工作流程见[开发指南](<docs/development.zh.md>)。实际命令由[包清单](<package.json>)和 [CI 工作流](<.github/workflows/ci.yml>)定义。保留的治理技能和审阅材料仅作参考，不表示已启用 TypeScript、Vitest、翻译校验、加权审批或远端分支保护。
+
+<a id="目录"></a>
+
+## 架构与目录
+
+Host 保存画板文档并统一提交写入；客户端按会话隔离选区桥接，再通过 DSH 原生输入框与消息渲染承载引用。理解数据流、不变量与完整文件职责，见[项目上下文](<docs/PROJECT-CONTEXT.md>)和[架构概览](<docs/architecture.zh.md>)。
+
+<a id="两块--一个薄承载"></a>
+
+<details>
+<summary>展开代码地图与桥接流程</summary>
+
+```text
+index.js          Host 入口、storage/tools 注入、HTTP 路由与模型工具注册
+host/             画板模型、版本与合并、持久化、引擎、路由和工具
+client.js         画布 UI、右侧栏 tab、会话级选区桥接与引用 chip
+cordis.patch.yml  DSH bundle 安装补丁
+locale/           Plugin Manager 的本地化标题与描述
+icon.svg          插件图标
+test/             Host / 客户端冒烟及可选端到端检查
+scripts/          本地安装、回滚与隔离排查脚本
+docs/             产品上下文、决策、验收、发布、路线和治理文档
+.agents/          治理参考技能与 Agent Notes
+.github/          CI、贡献与审阅材料
+```
+
+桥接流程：选中非笔迹对象 → 发布会话级选区 → 点击输入框上方的引用入口 → 通过 `captureInsertion()` / `insertReference()` 插入原生引用 → 发送时由 `inputTriggers` 序列化 → 正常消息显示引用 chip、指令和可选图片 → 模型调用 Host 工具。可选快照通过原生草稿附件加入，不创建第二会话面。
+
+设计决策见 [ADR-0003](<docs/adr/0003-canvas-agent-bridge.md>)；画板文档、字段级合并和撤销见 [ADR-0002](<docs/adr/0002-canvas-authority.md>)。精确实现以 [Host 入口](<index.js>)、[引擎](<host/engine.js>)和[客户端](<client.js>)为准。
+
+</details>
+
+## 文档与后续方向
+
+首页保留使用和维护入口；发布细节、修复经过与验收截图由各自文档承载。
+
+| 需要了解 | 入口 |
+|---|---|
+| 接手项目与不可破坏的约定 | [项目上下文](<docs/PROJECT-CONTEXT.md>) · [决策总表](<docs/DECISIONS.md>) |
+| 人工验收 | [v3 验收清单](<docs/ACCEPTANCE-v3.md>) |
+| 发布和版本变更 | [v3.0.0 发布说明](<docs/RELEASE-v3.0.0.md>) · [CHANGELOG](<CHANGELOG.md>) |
+| 历史验证与修复证据 | [证据说明](<docs/evidence-v3/README.md>) · [spike 结论](<docs/evidence-v3/SPIKE-RESULT.md>) |
+| 下一阶段 | [canvas-first / 自动画图路线](<docs/ROADMAP-v4.md>)，属于计划而非当前能力 |
+| 全部文档 | [文档索引](<docs/INDEX.md>) |
+
+历史记录不代表当前 checkout、远端 CI 或在线 DSH 已重新验证。公开证据与本地真实会话截图的范围不同：`live-*.png` 不进入公开 Git，引用它们的链接仅在保留对应文件的本机工作区有效。
 
 ## 限制与已知问题
 
-- **单用户、本机**：没有账号/多人同步；跨设备只是数据模型预留。
-- **默认画板共享**：新会话在未创建/切换自己的画板前打开 Host 默认画板（v2 起行为，S5）；
-  会话通过 `lastCanvasId` 记住自己的画板。
-- 右侧栏默认宽度约 575px（窄栏优先设计）；「全屏」为原生逃生口；极窄窗口 DSH 会收起右栏。
-- 同步是 600ms 轮询（`/sync?canvasId&sinceRev`）；不是流式。
-- 引用 chip 的 marker 为原生 `@`（扩展来源默认外观），label 正确。
-- 「附带选区快照」开关默认关，只保留在当前页面挂载态（不持久化）；关闭后不再附图片。
-- 规模上限见 `host/constants.js` 的 `LIMITS`；超限会被拒绝并提示。
-- 旧 v1 的 `localStorage` key 保留但不再读取，不做迁移（用户已确认破坏式更新）。
+以下是当前版本的使用边界；后续方向以路线文档为准，不作已实现能力承诺。
 
-## License
+- **单用户、本机使用**：没有账号、跨设备同步或多人实时协作；默认画板跨会话共享。
+- **侧栏与同步**：右侧栏默认宽度约 575px，以窄栏为先；极窄窗口 DSH 会收起侧栏，可使用宿主的原生全屏。画板采用 600ms 轮询同步，不是流式更新。
+- **引用外观**：原生引用 marker 为 `@`，显示画板选区 label。
+- **画布表达力**：没有连接线绑定、分组、帧、图层、图片对象或富文本；规模上限由 [LIMITS](<host/constants.js>)定义，超限会被拒绝并提示。
+- **AI 入口**：当前是 selection-first，没有整板引用或从零自动排版生成图的入口；模型工具支持插入对象，不等于已经提供自动布局能力。
+- **旧数据兼容**：保留但不再读取 v1 的 `localStorage` key，不迁移其数据；v3 数据层沿用 v2 画板文档。
 
-[MIT](LICENSE)。
+<a id="license"></a>
+
+## 许可证
+
+插件使用 [MIT](<LICENSE>) 许可证。导入治理参考材料的来源与核验边界见[来源说明](<SOURCE-LICENSE.txt>)。

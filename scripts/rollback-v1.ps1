@@ -1,5 +1,6 @@
-# Point the Harness profile back at the preserved v1 checkout (one-step rollback).
-# Only replaces the `node_modules/@local/whiteboard` link — restart 3080 to apply.
+# Point the Harness web profile back at the preserved sibling v1 source.
+# Replaces the plugin junction and updates an existing matching link: dependency.
+# This switches source only; restart explicitly and restore data separately if needed.
 $ErrorActionPreference = 'Stop'
 
 $profileDir = Join-Path $env:USERPROFILE '.dsh\profiles\web'

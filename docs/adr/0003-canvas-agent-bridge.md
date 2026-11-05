@@ -2,9 +2,8 @@
 
 - 状态：**已接受，M1 已实现（3.0.0）**（2026-11-04；实现证据见 `docs/evidence-v3/`）
 - 日期：2026-11-04
-- 取代：ADR-0002 的 **D12（AI 入口）**、**D18（工具契约）**、**D19（承载面）**、**D20（实施顺序）**；
-  ADR-0002 其余决策（文档权威、rev/fieldRevs、claim 软锁、字段级合并、append-only 历史、撤销、
-  单用户范围、规模上限）继续有效。
+- 取代：ADR-0002 的 **D12（AI 入口）**、**D18（工具契约）**、**D19（承载面）**、**D20（实施顺序）**。
+  Host 权威、rev/fieldRevs 和字段级合并仍适用；v3 模型工具不注册公开 claim，每次有效写入单独提交并可按该变更撤销，多个调用不会合并为整轮事务。其他 v2 细节的适用范围见 [ADR-0002](0002-canvas-authority.md)。
 - 决策明细（含已否决方案）见 [`../DECISIONS.md`](../DECISIONS.md)；本文件只讲架构与边界。
 
 ## 1. 背景与问题
@@ -31,7 +30,7 @@ v2 把画板做成 `conversation.view` 会话视图，AI 交互是画布内的�
 │ - 绘制/选择/编辑（CanvasView） │   │ - 选区 → 引用 chip（输入框上方）      │
 │ - 数据同步/撤销（CanvasCore）  │   │ - 发送时序列化“翻译”                 │
 │ - 画板列表/切换/AI 开关        │   │ - 模型工具 read/replace              │
-│ - 画布内状态与反馈             │   │ - Host：claim/rev/字段级合并         │
+│ - 画布内状态与反馈             │   │ - Host：rev/字段 basis/合并          │
 │                               │   │ - AI 开关的 Host 侧执行              │
 └──────────────┬────────────────┘   └──────────────┬───────────────────────┘
                │                                   │
@@ -82,7 +81,7 @@ Host
    - 大选区：短标记 + 提示模型调用 `whiteboard_read_selection`；
    - 若开启「附带选区快照」，同时附加一张原生图片附件；
 4. 模型（同一会话、同一 turn）调用 `whiteboard_replace_selection(canvasId, expectRev, patches, inserts?)`；
-5. Host 校验 claim/rev、字段级合并（人类胜）、应用变更、返回结果与可读冲突信息；
+5. Host 校验 `expectRev`，通过内部暂存和字段 basis 合并（人类胜），提交有效变更并返回结果与可读冲突信息；
 6. 画板客户端 `/sync` 拿到新 rev → 应用 → 对象闪烁 + toast（撤销）+ 模型一句话汇报；
 7. 用户可撤销（一次 AI 变更 = 一个逆补丁）。
 
@@ -109,10 +108,10 @@ Host
 
 | 工具 | 参数 | 返回 |
 |---|---|---|
-| `whiteboard_read_selection` | `canvasId`, `ids?`, `expectRev?` | 翻译文本 + 短时效 claim（大选区/重读时用） |
+| `whiteboard_read_selection` | `canvasId`, `ids?`, `expectRev?` | 翻译文本 + lossless JSON；Host 记录短时字段 basis，不返回或注册公开 claim |
 | `whiteboard_replace_selection` | `canvasId`, `expectRev`, `patches[{id,set}]`, `inserts?` | 应用结果、新 rev、冲突字段/失败原因（可读文本） |
 
-- 模型不传 claimId；Host 在 replace 内部创建/校验 claim，避免用户消息与工具参数里出现内部句柄。
+- 模型不传 claimId；Host 在 replace 内部构造临时 claim 进行暂存与字段合并，但不把它注册为公开 claim。
 - stale/conflict 返回可操作文本（“rev 已变为 13，请重新读取”），不返回裸错误码。
 - 工具描述要求：改完用一句话汇报；禁止凭空编造 id；大选区先 read。
 

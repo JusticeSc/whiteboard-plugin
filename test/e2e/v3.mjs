@@ -9,9 +9,10 @@
  *   - insert the native reference chip and send one message with it;
  *   - AI switch off hides the dock chip, on restores it;
  *   - no conversation-scoped whiteboard view remains (single .dsh-wb);
- *   - real DSH_HOME sessions/canvases are byte/mtime identical afterwards.
+ *   - compare the listed real-store size/mtime observations after owned processes stop.
+ *     This partial metadata snapshot is not a universal no-write proof.
  *
- * Run: node test/e2e/v3.mjs   (from whiteboard-plugin/test/e2e)
+ * Run: node test/e2e/v3.mjs   (from the repository root)
  */
 import { spawn, execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
@@ -26,18 +27,45 @@ const workspace = path.resolve(repo, '..');
 const scratchRoot = path.join(workspace, '.spike-e2e');
 const home = path.join(scratchRoot, 'dsh-home');
 const artifacts = path.join(here, '.artifacts');
-fs.mkdirSync(artifacts, { recursive: true });
-/* Every run starts from a clean isolated store so element/rev assertions are
-   deterministic; WB_E2E_KEEP_HOME=1 keeps it for debugging. */
-if (process.env.WB_E2E_KEEP_HOME !== '1') fs.rmSync(home, { recursive: true, force: true });
-fs.mkdirSync(home, { recursive: true });
-
 const PORT = Number(process.env.WB_E2E_PORT || 3092);
-const ORIGIN = 'http://127.0.0.1:' + PORT;
+let ORIGIN = 'http://127.0.0.1:' + PORT;
 const TURN_TIMEOUT = Number(process.env.WB_E2E_TIMEOUT || 240000);
-const realHome = process.env.DSH_HOME || path.join(process.env.USERPROFILE || process.env.HOME || '', '.dsh');
-
-let host = null;
+const realHome = path.resolve(process.env.DSH_HOME || path.join(process.env.USERPROFILE || process.env.HOME || '', '.dsh'));
+assert.ok(Number.isInteger(PORT) && PORT >= 0 && PORT <= 65535, 'WB_E2E_PORT must be an integer from 0 to 65535');
+assert.ok(Number.isFinite(TURN_TIMEOUT) && TURN_TIMEOUT > 0, 'WB_E2E_TIMEOUT must be positive');
+function canonicalPath(target) {
+  let existing = path.resolve(target);
+  const suffix = [];
+  while (!fs.existsSync(existing)) {
+    suffix.unshift(path.basename(existing));
+    const parent = path.dirname(existing);
+    if (parent === existing) throw new Error('Cannot resolve isolated-home ancestor');
+    existing = parent;
+  }
+  const resolved = path.resolve(fs.realpathSync(existing), ...suffix);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+const sourceHome = canonicalPath(realHome);
+const isolatedHome = canonicalPath(home);
+const containsPath = (parent, child) => parent === child || child.startsWith(parent + path.sep);
+assert.ok(!containsPath(sourceHome, isolatedHome) && !containsPath(isolatedHome, sourceHome), 'The isolated and real DSH homes must not overlap');
+for (const target of [scratchRoot, home]) {
+  const stat = fs.lstatSync(target, { throwIfNoEntry: false });
+  assert.ok(!stat || (stat.isDirectory() && !stat.isSymbolicLink()), 'The isolated scratch/home must be real directories: ' + target);
+}
+fs.mkdirSync(scratchRoot, { recursive: true, mode: 0o700 });
+// Fixed debug paths have one owner; inspect a stale lock before removing it.
+const lockPath = path.join(scratchRoot, '.v3.lock');
+const runLock = fs.openSync(lockPath, 'wx', 0o600);
+process.once('exit', () => { fs.closeSync(runLock); fs.unlinkSync(lockPath); });
+fs.mkdirSync(artifacts, { recursive: true });
+if (process.env.WB_E2E_KEEP_HOME !== '1') fs.rmSync(home, { recursive: true, force: true });
+fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+const isolatedUser = path.join(scratchRoot, 'user');
+const isolatedTemp = path.join(scratchRoot, 'tmp');
+fs.mkdirSync(isolatedUser, { recursive: true, mode: 0o700 });
+fs.mkdirSync(isolatedTemp, { recursive: true, mode: 0o700 });
+const ownedHosts = new Set();
 let browser = null;
 let page = null;
 let hostLog = '';
@@ -45,11 +73,22 @@ const pageErrors = [];
 const consoleErrors = [];
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
-function killTree(child) {
-  if (!child || child.exitCode !== null) return;
-  try { execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); } catch (error) { /* gone */ }
+function redactTokens(value) { return String(value).replace(/([?&]token=)[A-Za-z0-9_-]+/g, '$1[redacted]'); }
+async function killTree(child) {
+  if (!child || !child.pid || !ownedHosts.has(child)) return;
+  const closed = new Promise((resolve) => child.once('close', resolve));
+  let stopError;
+  try {
+    if (process.platform === 'win32') execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', timeout: 10000 });
+    else process.kill(-child.pid, 'SIGKILL');
+  } catch (error) { stopError = error; }
+  let timer;
+  try {
+    await Promise.race([closed, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Owned host did not close after termination: ' + child.pid, { cause: stopError })), 10000);
+    })]);
+  } finally { clearTimeout(timer); }
 }
-
 /** Copy credentials only; never write to the real DSH home. */
 function seedCredentials() {
   const source = path.join(realHome, '.credentials.yaml');
@@ -63,54 +102,67 @@ function snapshotRealStore() {
   const sessionsRoot = path.join(realHome, 'sessions');
   const collect = (dir, out) => {
     let entries = [];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (error) { return; }
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (error) { if (error.code === 'ENOENT') return; throw error; }
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       const full = path.join(dir, entry.name);
       let stat = null;
-      try { stat = fs.statSync(full); } catch (error) { continue; }
+      try { stat = fs.statSync(full); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
       out.push(full.slice(realHome.length) + '|' + stat.size + '|' + Math.round(stat.mtimeMs));
     }
   };
   let workspaces = [];
-  try { workspaces = fs.readdirSync(sessionsRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()); } catch (error) { /* none */ }
+  try { workspaces = fs.readdirSync(sessionsRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   for (const entry of workspaces) collect(path.join(sessionsRoot, entry.name), snapshot.sessions);
   collect(path.join(realHome, 'storages', 'whiteboard'), snapshot.whiteboard);
   try {
     const stat = fs.statSync(path.join(realHome, 'storages', 'workspace.json'));
     snapshot.workspaceMtime = Math.round(stat.mtimeMs) + '|' + stat.size;
-  } catch (error) { /* none */ }
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
   return snapshot;
 }
 
 async function spawnHost() {
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^DSH_/i.test(key)));
   const child = spawn('dsh', ['web', '--port', String(PORT), '--host', '127.0.0.1', '--no-open'], {
     cwd: repo,
     shell: true,
-    env: { ...process.env, DSH_HOME: home, DSH_NO_OPEN: '1' },
+    detached: process.platform !== 'win32',
+    env: {
+      ...inherited,
+      USERPROFILE: isolatedUser, HOME: isolatedUser, TEMP: isolatedTemp, TMP: isolatedTemp,
+      DSH_HOME: home, DSH_PROFILE: 'web', DSH_PROFILE_DIR: path.join(home, 'profiles', 'web'), DSH_NO_OPEN: '1',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  ownedHosts.add(child);
+  child.once('close', () => ownedHosts.delete(child));
   let buffer = '';
   const url = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('host did not print a token URL in 90s:\n' + buffer)), 90000);
-    child.stdout.on('data', (chunk) => {
-      buffer += chunk.toString();
+    const timer = setTimeout(() => reject(new Error('host did not print a token URL in 90s:\n' + redactTokens(buffer))), 90000);
+    const record = (chunk) => {
+      buffer = (buffer + chunk.toString()).slice(-64000);
+      hostLog = redactTokens(buffer);
       const match = buffer.match(/http:\/\/127\.0\.0\.1:\d+\/\?token=[A-Za-z0-9_-]+/);
       if (match) { clearTimeout(timer); resolve(match[0]); }
-    });
-    child.stderr.on('data', (chunk) => { buffer += chunk.toString(); });
-    child.on('exit', (code) => { clearTimeout(timer); reject(new Error('host exited early with ' + code + ':\n' + buffer)); });
+    };
+    child.stdout.on('data', record);
+    child.stderr.on('data', record);
+    child.once('error', (error) => { clearTimeout(timer); reject(error); });
+    child.once('exit', (code) => { clearTimeout(timer); reject(new Error('host exited early with ' + code + ':\n' + redactTokens(buffer))); });
   });
-  hostLog = buffer;
   return { child, url };
 }
-
 async function waitHealth() {
-  for (let i = 0; i < 80; i += 1) {
+  const deadline = Date.now() + 40000;
+  while (Date.now() < deadline) {
+    if (![...ownedHosts].some(child => child.exitCode === null && child.signalCode === null)) throw new Error('Owned host exited before health readiness');
     try {
-      const response = await fetch(ORIGIN + '/api/whiteboard/v2/health', { cache: 'no-store' });
-      if (response.ok) return;
-    } catch (error) { /* not up yet */ }
-    await sleep(500);
+      const response = await fetch(ORIGIN + '/api/whiteboard/v2/health', { cache: 'no-store', signal: AbortSignal.timeout(Math.max(1, Math.min(2000, deadline - Date.now()))) });
+      const healthy = response.ok;
+      await response.body?.cancel();
+      if (healthy) return;
+    } catch (error) { /* bounded readiness retry */ }
+    await sleep(Math.max(0, Math.min(500, deadline - Date.now())));
   }
   throw new Error('whiteboard health route did not answer within 40s:\n' + hostLog);
 }
@@ -139,12 +191,11 @@ async function bootIsolated() {
   /* First boot initializes profiles/web for this DSH_HOME. */
   if (!fs.existsSync(path.join(home, 'profiles', 'web', 'package.json'))) {
     const first = await spawnHost();
-    killTree(first.child);
-    await sleep(800);
+    await killTree(first.child);
   }
   installPluginLink();
   const second = await spawnHost();
-  host = second.child;
+  ORIGIN = new URL(second.url).origin;
   await waitHealth();
   return second.url;
 }
@@ -290,8 +341,9 @@ async function selectBoth(box) {
 }
 
 const results = {};
+let before = null;
 try {
-  const before = snapshotRealStore();
+  before = snapshotRealStore();
   const url = await bootIsolated();
   results.host = ORIGIN;
   console.log('isolated host ready on', ORIGIN);
@@ -697,26 +749,14 @@ try {
   assert.ok(results.narrowViewport.barOverflow <= 1, 'the board bar must wrap without horizontal overflow: ' + JSON.stringify(results.narrowViewport));
   await capture('v3-11-narrow-viewport');
 
-  /* 12. zero-write assertion on the real DSH home */
-  await sleep(1200);
-  const after = snapshotRealStore();
-  const diffs = [];
-  if (JSON.stringify(before.sessions) !== JSON.stringify(after.sessions)) diffs.push('sessions');
-  if (JSON.stringify(before.whiteboard) !== JSON.stringify(after.whiteboard)) diffs.push('whiteboard-store');
-  if (before.workspaceMtime !== after.workspaceMtime) diffs.push('workspace.json');
-  results.zeroWrite = { ok: diffs.length === 0, diffs: diffs };
-  assert.deepEqual(diffs, [], 'real DSH store must not change');
-
   results.pageErrors = pageErrors;
   results.consoleErrors = consoleErrors;
   assert.deepEqual(pageErrors, [], 'no page errors');
   assert.deepEqual(consoleErrors, [], 'no console errors');
 
-  console.log(JSON.stringify(results, null, 2));
-  console.log('E2E V3 OK');
   process.exitCode = 0;
 } catch (error) {
-  results.failure = String(error && error.stack ? error.stack : error);
+  results.failure = redactTokens(error && error.stack ? error.stack : error);
   results.pageErrors = pageErrors;
   results.consoleErrors = consoleErrors;
   try {
@@ -757,31 +797,30 @@ try {
     });
   } catch (diagnosticError) { results.diagnostics = String(diagnosticError.message); }
   await capture('v3-99-failure');
-  console.error(JSON.stringify(results, null, 2));
   process.exitCode = 1;
 } finally {
-  if (browser) await browser.close().catch(() => {});
-  killTree(host);
-  fs.writeFileSync(path.join(artifacts, 'v3-result.json'), JSON.stringify(results, null, 2));
+  const cleanupErrors = [];
+  if (browser) {
+    try { await browser.close(); } catch (error) { cleanupErrors.push(redactTokens(error.stack || error)); }
+  }
+  for (const child of [...ownedHosts]) {
+    try { await killTree(child); } catch (error) { cleanupErrors.push(redactTokens(error.stack || error)); }
+  }
+  results.cleanup = { ok: cleanupErrors.length === 0 && ownedHosts.size === 0, ownedHostsRemaining: ownedHosts.size, errors: cleanupErrors };
+  if (!results.cleanup.ok) { results.failure ||= 'Owned browser/host cleanup did not complete'; process.exitCode = 1; }
+  if (before) {
+    try {
+      const after = snapshotRealStore();
+      const diffs = [];
+      if (JSON.stringify(before.sessions) !== JSON.stringify(after.sessions)) diffs.push('sessions');
+      if (JSON.stringify(before.whiteboard) !== JSON.stringify(after.whiteboard)) diffs.push('whiteboard-store');
+      if (before.workspaceMtime !== after.workspaceMtime) diffs.push('workspace.json');
+      results.zeroWrite = { ok: diffs.length === 0, diffs, method: 'partial size/mtime snapshot; concurrent writes are not attributable to this test' };
+      if (diffs.length) { results.failure ||= 'Observed real-store metadata changed; investigate concurrent writers or isolation'; process.exitCode = 1; }
+    } catch (error) { results.failure ||= redactTokens(error.stack || error); process.exitCode = 1; }
+  }
+  const report = JSON.stringify(results, null, 2);
+  fs.writeFileSync(path.join(artifacts, 'v3-result.json'), report);
+  if (process.exitCode === 0) { console.log(report); console.log('E2E V3 OK'); }
+  else { console.error(report); }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

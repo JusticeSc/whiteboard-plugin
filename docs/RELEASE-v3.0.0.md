@@ -1,5 +1,7 @@
 # 发布说明：`@local/whiteboard` 3.0.0
 
+> 历史适用范围（2026-11-05 补充）：本文保留当时计划和证据；“零写入”仅指所选大小/时间戳快照，不能证明全盘不变。旧安装/回滚探针曾操作真实 profile，现已改为临时合成 fixture；当前隔离方式和证据边界见 [测试说明](../test/e2e/README.md)。
+
 > 状态：**已发布到 GitHub**（public repo + `v3.0.0` Release + MIT License）。
 > **分发方式 = DSH bundle 安装；不发布 npm**（见 §4/§5）。
 > 生成日期：2026-11-04（Asia/Shanghai）。
